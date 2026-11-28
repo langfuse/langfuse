@@ -7,7 +7,12 @@ export const TOPIC_STRIPE_SLOTS = 16;
 
 type TraceTopics = Record<
   string,
-  { facet: string; topic: string | null; runIds: string[] }[]
+  {
+    facet: string;
+    topicId: string | null;
+    topic: string | null;
+    runIds: string[];
+  }[]
 >;
 
 /** The one map the stripe counts. */
@@ -15,7 +20,13 @@ export type TopicStripeMap = { runId: string };
 
 export type TopicStripeSegment =
   /** `slot` is the topic's rank in the loaded rows, largest first; the colour follows it. */
-  | { kind: "topic"; name: string; count: number; slot: number }
+  | {
+      kind: "topic";
+      topicId: string;
+      name: string;
+      count: number;
+      slot: number;
+    }
   | { kind: "more"; count: number; topicCount: number }
   | { kind: "unassigned"; count: number };
 
@@ -38,7 +49,7 @@ function mapResult(
 ) {
   return topicsByTrace[traceId]?.find(
     (item) => item.facet === facet && item.runIds.includes(map.runId),
-  )?.topic;
+  );
 }
 
 /** Distinct traces in the rows, and how many of them the map analysed, outliers included. */
@@ -72,17 +83,29 @@ export function topicStripeSegments({
   facet: string;
   map: TopicStripeMap;
 }): TopicStripeSegment[] {
-  const counts = new Map<string, number>();
+  const counts = new Map<string, { name: string; count: number }>();
   let unassigned = 0;
   for (const traceId of distinctTraceIds(rows)) {
-    const name = mapResult(topicsByTrace, traceId, facet, map);
-    if (!name) unassigned++;
-    else counts.set(name, (counts.get(name) ?? 0) + 1);
+    const entry = mapResult(topicsByTrace, traceId, facet, map);
+    if (!entry?.topicId || !entry.topic) unassigned++;
+    else {
+      const existing = counts.get(entry.topicId);
+      counts.set(entry.topicId, {
+        name: entry.topic,
+        count: (existing?.count ?? 0) + 1,
+      });
+    }
   }
   const topics = [...counts]
-    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
-    .map(([name, count], slot) => ({
+    .sort(
+      ([aId, a], [bId, b]) =>
+        b.count - a.count ||
+        a.name.localeCompare(b.name) ||
+        aId.localeCompare(bId),
+    )
+    .map(([topicId, { name, count }], slot) => ({
       kind: "topic" as const,
+      topicId,
       name,
       count,
       slot,

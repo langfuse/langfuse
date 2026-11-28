@@ -121,7 +121,7 @@ export function MobileTopicsView({
       selectedTopic.id !== UNASSIGNED_TOPIC_ID &&
       !searchQuery &&
       !isAnalysis
-      ? { facet, name: selectedTopic.name }
+      ? { facet, topicId: selectedTopic.id }
       : undefined,
   );
 
@@ -146,7 +146,7 @@ export function MobileTopicsView({
     });
     onFiltersChange(
       pickedTopicFilters(
-        { name: facet.name, topics: searchTopics },
+        facet.name,
         topicId === UNASSIGNED_TOPIC_ID ? null : topicId,
       ),
     );

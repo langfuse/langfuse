@@ -158,6 +158,10 @@ export type FieldRegistry = {
   metadataNamespaces?: Readonly<Record<string, string>>;
   /** Keyed option roots (`topics.<facet>:<value>`) mapped to categoryOptions columns. */
   keyedOptionNamespaces?: Readonly<Record<string, string>>;
+  /** Per-column, per-key display/filter value bijections for keyed categoryOptions (e.g. topics.<facet>). */
+  keyedOptionMaps?: Readonly<
+    Record<string, Readonly<Record<string, KeyedFieldOptionMaps>>>
+  >;
   scores: boolean;
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
    *  trace-score columns (sessions) keep observation scores without them. */
@@ -384,6 +388,7 @@ export function extendFieldRegistryWithColumns(
     metadata: registry.metadata,
     metadataNamespaces: registry.metadataNamespaces,
     keyedOptionNamespaces: registry.keyedOptionNamespaces,
+    keyedOptionMaps: registry.keyedOptionMaps,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
@@ -438,6 +443,7 @@ export function withFieldOptions(
     numericMetadata: registry.numericMetadata,
     metadataNamespaces: registry.metadataNamespaces,
     keyedOptionNamespaces: registry.keyedOptionNamespaces,
+    keyedOptionMaps: registry.keyedOptionMaps,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
@@ -454,6 +460,45 @@ export function withFieldOptions(
     recentSearches: registry.recentSearches,
     aiFilterPrompt: registry.aiFilterPrompt,
     aiContextFields: registry.aiContextFields,
+  });
+}
+
+export type KeyedFieldOptionMaps = {
+  /** Display/query label → canonical FilterState value. */
+  filterValueByDisplayValue: ReadonlyMap<string, string>;
+  /** Canonical FilterState value → display/query label. */
+  displayValueByFilterValue: ReadonlyMap<string, string>;
+};
+
+/** `registry` with per-key labeled options on a keyed categoryOptions column (e.g. `topics`). */
+export function withKeyedFieldOptions(
+  registry: FieldRegistry,
+  column: string,
+  optionsByKey: Readonly<Record<string, readonly SingleValueOption[]>>,
+): FieldRegistry {
+  const columnMaps: Record<string, KeyedFieldOptionMaps> = {};
+  for (const [key, options] of Object.entries(optionsByKey)) {
+    columnMaps[key] = {
+      filterValueByDisplayValue: new Map(
+        options.map((option) => [
+          option.displayValue ?? option.value,
+          option.value,
+        ]),
+      ),
+      displayValueByFilterValue: new Map(
+        options.map((option) => [
+          option.value,
+          option.displayValue ?? option.value,
+        ]),
+      ),
+    };
+  }
+  return createFieldRegistry({
+    ...registry,
+    keyedOptionMaps: {
+      ...registry.keyedOptionMaps,
+      [column]: columnMaps,
+    },
   });
 }
 
@@ -605,6 +650,7 @@ export function createFieldRegistry({
   numericMetadata = false,
   metadataNamespaces,
   keyedOptionNamespaces,
+  keyedOptionMaps,
   scores,
   traceScores,
   allowFreeText,
@@ -630,6 +676,9 @@ export function createFieldRegistry({
   numericMetadata?: boolean;
   metadataNamespaces?: Readonly<Record<string, string>>;
   keyedOptionNamespaces?: Readonly<Record<string, string>>;
+  keyedOptionMaps?: Readonly<
+    Record<string, Readonly<Record<string, KeyedFieldOptionMaps>>>
+  >;
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
@@ -683,6 +732,7 @@ export function createFieldRegistry({
     numericMetadata,
     metadataNamespaces,
     keyedOptionNamespaces,
+    keyedOptionMaps,
     scores,
     traceScores,
     defaultTextField,

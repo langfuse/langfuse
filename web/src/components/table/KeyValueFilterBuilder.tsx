@@ -35,6 +35,7 @@ type KeyValueFilterBuilderProps =
       keyOptions?: string[];
       keyLevels?: KeyScoreLevels;
       availableValues: Record<string, string[]>;
+      displayByKeyValue?: Record<string, Record<string, string>>;
       activeFilters: KeyValueFilterEntry[];
       onChange: (filters: KeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
@@ -380,6 +381,8 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     keyPlaceholder = "Key",
   } = props;
   const availableValues = mode === "categorical" ? props.availableValues : {};
+  const displayByKeyValue =
+    mode === "categorical" ? props.displayByKeyValue : undefined;
   const keyDetails = mode === "string" ? props.keyDetails : undefined;
   const valueOptions = mode === "string" ? props.valueOptions : undefined;
   const numericValues = mode === "string" && props.numericValues === true;
@@ -591,7 +594,10 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     ]),
                   )
                     .filter((value) => value.length > 0)
-                    .map((value) => ({ value, label: value }))}
+                    .map((value) => ({
+                      value,
+                      label: displayByKeyValue?.[filter.key]?.[value] ?? value,
+                    }))}
                   value={filter.value as string[]}
                   onValueChange={(values) =>
                     handleFilterChange(index, { value: values })

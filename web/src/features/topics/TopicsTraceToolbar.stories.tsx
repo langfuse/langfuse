@@ -194,7 +194,7 @@ export const SearchAndClear = meta.story({
         type: "categoryOptions",
         key: "Intent",
         operator: "any of",
-        value: ["Billing questions", "Project setup"],
+        value: ["billing", "setup"],
       },
       {
         column: "assignment",
@@ -267,7 +267,7 @@ export const TopicAutocomplete = meta.story({
         type: "categoryOptions",
         key: "Intent",
         operator: "any of",
-        value: ["Billing questions"],
+        value: ["billing"],
       },
     ]);
     await expect(canvas.getByTestId("search-bar-token")).toHaveTextContent(
@@ -295,7 +295,7 @@ export const TopicAutocomplete = meta.story({
         type: "categoryOptions",
         key: "Intent",
         operator: "any of",
-        value: ["Billing questions", "Project setup", "Technical support"],
+        value: ["billing", "setup", "support"],
       },
     ]);
   },
@@ -319,7 +319,7 @@ export const UnsupportedRestoredFilter = meta.story({
 export const FacetFiltersPersist = meta.story({
   name: "(Test) Facets Remember Their Filters",
   beforeEach: () => {
-    const storageKey = "topics-trace-filters-v2";
+    const storageKey = "topics-trace-filters-v3";
     const snapshots = JSON.parse(
       localStorage.getItem(storageKey) ?? "{}",
     ) as Record<string, unknown>;

@@ -9,7 +9,7 @@ import {
   topicStripeSegments,
 } from "./topic-stripe";
 
-/** Facet name → topic names, for the sidebar facet and the search bar. */
+/** Facet name → topic options (`{ value, displayValue }`), for the sidebar facet and the search bar. */
 export function useTopicFilterOptions(projectId: string, enabled: boolean) {
   return api.topics.filterOptions.useQuery(
     { projectId },
@@ -43,8 +43,8 @@ export function useTopicStripe({
   projectId: string;
   enabled: boolean;
   rows: { traceId?: string | null; startTime: Date }[];
-  /** Facet name → its published topic names; picks the facet. */
-  facetTopics: Record<string, string[]> | undefined;
+  /** Facet name → its published topic options; picks the facet. */
+  facetTopics: Record<string, readonly unknown[]> | undefined;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
 }) {

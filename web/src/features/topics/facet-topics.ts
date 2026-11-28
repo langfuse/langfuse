@@ -68,14 +68,14 @@ export function topicTracesHref(
   projectId: string,
   rows: FacetRow[],
   isV4: boolean,
-  topic?: { facet: Facet; name: string },
+  topic?: { facet: Facet; topicId: string },
 ) {
   return topic && isV4
-    ? topicFilterHref(projectId, topic.facet, topic.name)
+    ? topicFilterHref(projectId, topic.facet, topic.topicId)
     : traceIdsHref(projectId, rows, isV4);
 }
 
-function topicFilterHref(projectId: string, facet: Facet, topicName: string) {
+function topicFilterHref(projectId: string, facet: Facet, topicId: string) {
   // The tracing topic filter rejects windows longer than the Topics maximum.
   const { to } = facet.window;
   const from = Math.max(
@@ -90,7 +90,7 @@ function topicFilterHref(projectId: string, facet: Facet, topicName: string) {
         type: "categoryOptions",
         key: facet.name,
         operator: "any of",
-        value: [topicName],
+        value: [topicId],
       },
     ]),
     { from: new Date(from), to },

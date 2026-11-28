@@ -603,6 +603,7 @@ export function DataTableControls({
           keyOptions={filter.keyOptions}
           keyLevels={filter.keyLevels}
           availableValues={filter.availableValues}
+          displayByKeyValue={filter.displayByKeyValue}
           value={filter.value}
           onChange={filter.onChange}
           isActive={filter.isActive}
@@ -1312,6 +1313,7 @@ interface KeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
   keyLevels?: KeyScoreLevels;
   availableValues: Record<string, string[]>;
+  displayByKeyValue?: Record<string, Record<string, string>>;
   value: KeyValueFilterEntry[];
   onChange: (filters: KeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
@@ -1896,6 +1898,7 @@ function KeyValueFacet({
   keyOptions,
   keyLevels,
   availableValues,
+  displayByKeyValue,
   value,
   onChange,
   isActive,
@@ -1926,6 +1929,7 @@ function KeyValueFacet({
           keyOptions={keyOptions}
           keyLevels={keyLevels}
           availableValues={availableValues}
+          displayByKeyValue={displayByKeyValue}
           activeFilters={value}
           onChange={onChange}
           keyPlaceholder={keyPlaceholder}

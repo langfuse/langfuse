@@ -270,6 +270,7 @@ interface KeyValueUIFilter extends BaseUIFilter {
   keyOptions?: string[];
   keyLevels?: KeyScoreLevels;
   availableValues: Record<string, string[]>;
+  displayByKeyValue?: Record<string, Record<string, string>>;
   onChange: (filters: KeyValueFilterEntry[]) => void;
 }
 
@@ -321,6 +322,8 @@ const EMPTY_MAP: Map<string, number> = new Map();
  */
 export type FacetOptionValue = SingleValueOption & { type?: string };
 
+export type KeyedFacetOptionValue = string | SingleValueOption;
+
 /**
  * The facet option payload a view hands the sidebar: `filterOptions` per
  * column, plus whatever client-side suggestion source it opted into. Keyed
@@ -329,7 +332,9 @@ export type FacetOptionValue = SingleValueOption & { type?: string };
  */
 export type FacetOptions = Record<
   string,
-  (string | FacetOptionValue)[] | Record<string, string[]> | undefined
+  | (string | FacetOptionValue)[]
+  | Record<string, KeyedFacetOptionValue[]>
+  | undefined
 >;
 
 const mergeUniqueStrings = (...lists: (string[] | undefined)[]): string[] =>
@@ -373,7 +378,7 @@ const resolveKnownKeyOptions = (
   facetKeyOptions: string[] | undefined,
   availableKeys:
     | (string | FacetOptionValue)[]
-    | Record<string, string[]>
+    | Record<string, KeyedFacetOptionValue[]>
     | undefined,
   activeKeys: string[],
 ): string[] | undefined => {
@@ -397,7 +402,7 @@ const resolveKnownKeyOptions = (
 const resolveKeyDetails = (
   availableKeys:
     | (string | FacetOptionValue)[]
-    | Record<string, string[]>
+    | Record<string, KeyedFacetOptionValue[]>
     | undefined,
 ): Record<string, string> | undefined => {
   if (!Array.isArray(availableKeys)) return undefined;
@@ -428,6 +433,40 @@ const resolveKeyedValueOptions = (
     out[key] = values.map((v) => (typeof v === "string" ? v : v.value));
   }
   return Object.keys(out).length > 0 ? out : undefined;
+};
+
+const extractKeyedValuesAndDisplay = (
+  raw: Record<string, KeyedFacetOptionValue[]>,
+): {
+  values: Record<string, string[]>;
+  displayByKeyValue?: Record<string, Record<string, string>>;
+} => {
+  const values: Record<string, string[]> = {};
+  const displayByKeyValue: Record<string, Record<string, string>> = {};
+  for (const [key, list] of Object.entries(raw)) {
+    const keyValues: string[] = [];
+    for (const option of list) {
+      if (typeof option === "string") {
+        keyValues.push(option);
+      } else {
+        keyValues.push(option.value);
+        if (
+          typeof option.displayValue === "string" &&
+          option.displayValue !== option.value
+        ) {
+          if (!displayByKeyValue[key]) {
+            displayByKeyValue[key] = {};
+          }
+          displayByKeyValue[key][option.value] = option.displayValue;
+        }
+      }
+    }
+    values[key] = keyValues;
+  }
+  return {
+    values,
+    ...(Object.keys(displayByKeyValue).length > 0 ? { displayByKeyValue } : {}),
+  };
 };
 
 const mergeAvailableValuesWithActiveFilters = (
@@ -1525,14 +1564,17 @@ export function useSidebarFilterPresentation(
 
           // Get available values from options
           const availableValues = options[facet.column] ?? {};
-          const mergedAvailableValues =
+          const extracted =
             typeof availableValues === "object" &&
             !Array.isArray(availableValues)
-              ? mergeAvailableValuesWithActiveFilters(
-                  availableValues as Record<string, string[]>,
-                  activeFilters,
+              ? extractKeyedValuesAndDisplay(
+                  availableValues as Record<string, KeyedFacetOptionValue[]>,
                 )
-              : ({} as Record<string, string[]>);
+              : { values: {} as Record<string, string[]> };
+          const mergedAvailableValues = mergeAvailableValuesWithActiveFilters(
+            extracted.values,
+            activeFilters,
+          );
 
           // Extract key options from availableValues if not defined in facet
           const keyOptions =
@@ -1553,6 +1595,7 @@ export function useSidebarFilterPresentation(
             keyOptions,
             keyLevels: resolveKeyScoreLevels(facet.column, options),
             availableValues: mergedAvailableValues,
+            displayByKeyValue: extracted.displayByKeyValue,
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,

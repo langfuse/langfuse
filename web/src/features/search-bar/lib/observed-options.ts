@@ -24,11 +24,13 @@ type ObservedValue = {
 };
 export type ObservedOptions = Record<string, ObservedValue[]>;
 
-type RawOption = string | { value: string; count?: number };
+type RawOption =
+  | string
+  | { value: string; displayValue?: string; count?: number };
 
 type RawFilterOptions = Record<
   string,
-  RawOption[] | Record<string, string[]> | undefined
+  RawOption[] | Record<string, RawOption[]> | undefined
 >;
 
 function toObservedValues(options: RawOption[]): ObservedValue[] {
@@ -96,12 +98,10 @@ export function toObservedOptions(
       out[column] = toObservedValues(options);
       continue;
     }
-    // Keyed columns (score_categories & friends): Record<name, values[]>.
+    // Keyed columns (score_categories, topics & friends): Record<name, values[]>.
     out[column] = Object.keys(options).map((name) => ({ value: name }));
     for (const [name, values] of Object.entries(options)) {
-      out[`${column}.${name}`] = values
-        .filter((v) => v.length > 0)
-        .map((v) => ({ value: v }));
+      out[`${column}.${name}`] = toObservedValues(values);
     }
   }
   normalizeScoreTypes(out);

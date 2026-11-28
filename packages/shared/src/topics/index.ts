@@ -35,7 +35,7 @@ export function orderByFacetIds<T extends { facetId: string }>(
   );
 }
 
-/** Tracing filter column: key is the facet name, values are topic names. */
+/** Topic filter column: key is the facet name, values are stable topic IDs (with name fallback for legacy URLs). */
 const TOPIC_FILTER_COLUMN = "topics";
 
 export function isTopicFilter<T extends { type: string; column: string }>(
@@ -44,6 +44,41 @@ export function isTopicFilter<T extends { type: string; column: string }>(
   return (
     filter.type === "categoryOptions" && filter.column === TOPIC_FILTER_COLUMN
   );
+}
+
+/**
+ * Builds labeled topic filter options keyed by stable topic ID. Unique names
+ * display as-is; duplicate names within the same facet append `(<id>)` so
+ * filter display labels stay 1:1 with topic IDs.
+ */
+export function buildTopicFilterOptions(
+  topics: readonly { id: string; name: string }[],
+): { value: string; displayValue: string }[] {
+  const unique: { id: string; name: string }[] = [];
+  const seenIds = new Set<string>();
+  for (const topic of topics) {
+    if (seenIds.has(topic.id)) continue;
+    seenIds.add(topic.id);
+    unique.push(topic);
+  }
+  const nameCounts = new Map<string, number>();
+  for (const topic of unique) {
+    nameCounts.set(topic.name, (nameCounts.get(topic.name) ?? 0) + 1);
+  }
+  const taken = new Set(
+    unique
+      .filter((topic) => (nameCounts.get(topic.name) ?? 0) === 1)
+      .map((topic) => topic.name),
+  );
+  return unique.map((topic) => {
+    const duplicate = (nameCounts.get(topic.name) ?? 0) > 1;
+    let displayValue = duplicate ? `${topic.name} (${topic.id})` : topic.name;
+    if (duplicate) {
+      while (taken.has(displayValue)) displayValue += ` (${topic.id})`;
+      taken.add(displayValue);
+    }
+    return { value: topic.id, displayValue };
+  });
 }
 
 /** Batch jobs read without topic membership, so they must not drop a topic filter silently. */

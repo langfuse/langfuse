@@ -271,7 +271,7 @@ describe("Open in Tracing", () => {
       window: { from: new Date(to.getTime() - TOPICS_MAX_TIME_RANGE_MS), to },
     } as Facet;
     const url = new URL(
-      topicTracesHref("p1", [], true, { facet, name: "Billing" })!,
+      topicTracesHref("p1", [], true, { facet, topicId: "topic-billing" })!,
       "http://localhost",
     );
     expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual([
@@ -280,7 +280,7 @@ describe("Open in Tracing", () => {
         type: "categoryOptions",
         key: "Intent",
         operator: "any of",
-        value: ["Billing"],
+        value: ["topic-billing"],
       },
     ]);
     // The server adds 1 ms to the inclusive upper bound before checking the maximum.

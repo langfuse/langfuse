@@ -106,3 +106,61 @@ it("matches nothing without querying when the table's date filters cannot overla
   ).resolves.toEqual([]);
   expect(postgres.listTopicFacets).not.toHaveBeenCalled();
 });
+
+it("matches stable topic IDs directly (including after rename or with duplicate names) and falls back to names for legacy filters", async () => {
+  postgres.listTopicFacets.mockResolvedValue([
+    { id: "facet-1", name: "Intent" },
+  ]);
+  postgres.getPublishedTopicMaps.mockResolvedValue({
+    runIds: ["run-1"],
+    maps: [
+      {
+        facetId: "facet-1",
+        topics: [
+          { topicId: "topic-a", name: "Support" },
+          { topicId: "topic-b", name: "Support" },
+          { topicId: "topic-c", name: "Renamed Billing" },
+        ],
+      },
+    ],
+  });
+  const { topicFilterConditions } = await import("./trace-filter.js");
+  const window = [
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: ">=" as const,
+      value: new Date("2026-05-25T00:00:00.000Z"),
+    },
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: "<" as const,
+      value: new Date("2026-06-01T00:00:00.000Z"),
+    },
+  ];
+
+  // Stable ID targets only topic-a even though topic-b shares the same name.
+  const [byId] = await topicFilterConditions("project-b", [
+    { ...topicFilter, value: ["topic-a"] },
+    ...window,
+  ]);
+  expect(byId?.params.topicFilter0_topicIds).toEqual(["topic-a"]);
+
+  // Stable ID keeps matching after a topic rename.
+  const [afterRename] = await topicFilterConditions("project-b", [
+    { ...topicFilter, value: ["topic-c"] },
+    ...window,
+  ]);
+  expect(afterRename?.params.topicFilter0_topicIds).toEqual(["topic-c"]);
+
+  // Legacy name-based URLs still resolve to matching topic IDs.
+  const [legacyName] = await topicFilterConditions("project-b", [
+    { ...topicFilter, value: ["Support"] },
+    ...window,
+  ]);
+  expect(legacyName?.params.topicFilter0_topicIds).toEqual([
+    "topic-a",
+    "topic-b",
+  ]);
+});

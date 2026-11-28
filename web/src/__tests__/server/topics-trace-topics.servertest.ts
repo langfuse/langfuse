@@ -109,8 +109,18 @@ describe("tracesTopics", () => {
         (a.topic ?? "").localeCompare(b.topic ?? ""),
       ),
     ).toEqual([
-      { facet: facet.name, topic: "Billing", runIds: [currentA.runId] },
-      { facet: facet.name, topic: "Refunds", runIds: [currentB.runId] },
+      {
+        facet: facet.name,
+        topicId: sharedTopicId,
+        topic: "Billing",
+        runIds: [currentA.runId],
+      },
+      {
+        facet: facet.name,
+        topicId: sharedTopicId,
+        topic: "Refunds",
+        runIds: [currentB.runId],
+      },
     ]);
   });
 });
