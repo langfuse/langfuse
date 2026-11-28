@@ -236,7 +236,7 @@ async function processLLMCall(
     ...(config.structuredOutputSchema
       ? { output: createLLMOutput(config.structuredOutputSchema) }
       : config.tools.length > 0
-        ? { tools: createLLMToolSet(config.tools) }
+        ? { tools: { ...llmParams.tools, ...createLLMToolSet(config.tools) } }
         : {}),
     trace: traceSinkParams,
   }).catch(() => undefined); // catch errors and do not retry

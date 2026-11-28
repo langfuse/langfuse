@@ -38,6 +38,11 @@ import {
   isOpenAICompatibleEndpoint,
   translateOpenAIProviderOptions,
 } from "./ai-sdk/providers/openai";
+import {
+  translateAnthropicProviderTools,
+  translateOpenAIProviderTools,
+  type TranslatedProviderTools,
+} from "./ai-sdk/providers/providerTools";
 import { wrapFetchWithOpenRouterInternalTraceProvenance } from "./ai-sdk/openRouterProvenance";
 import type {
   LLMCredentialSource,
@@ -609,6 +614,11 @@ export type LegacyLLMTextOptions = {
   topP?: number;
   reasoning?: LanguageModelCallOptions["reasoning"];
   providerOptions?: ProviderOptions;
+  /**
+   * Provider-executed tools (e.g. web search) from the persisted provider
+   * options. Callers that pass their own tools must merge these in.
+   */
+  tools?: ToolSet;
   credentialSource: LLMCredentialSource;
 };
 
@@ -623,7 +633,7 @@ export function mapLegacyLLMCompletionParams(params: {
   credentialSource?: LLMCredentialSource;
 }): LegacyLLMTextOptions {
   const { modelParams } = params;
-  const providerOptions = translateLegacyProviderOptions({
+  const { providerOptions, tools } = translateLegacyProviderOptions({
     modelParams,
     connection: params.connection,
   });
@@ -645,6 +655,7 @@ export function mapLegacyLLMCompletionParams(params: {
         ? "none"
         : undefined,
     providerOptions,
+    ...(tools ? { tools } : {}),
     credentialSource: params.credentialSource ?? "user",
   };
 }
@@ -652,18 +663,38 @@ export function mapLegacyLLMCompletionParams(params: {
 function translateLegacyProviderOptions(params: {
   modelParams: ModelParams;
   connection: LLMConnection;
-}): ProviderOptions | undefined {
+}): { providerOptions: ProviderOptions | undefined; tools?: ToolSet } {
   const { modelParams, connection } = params;
   let namespace: string;
   let translated: TranslatedProviderOptions;
+  let translatedTools: TranslatedProviderTools | undefined;
 
   switch (modelParams.adapter) {
     case LLMAdapter.OpenAI: {
       namespace = "openai";
+      const useResponsesApi = connection.config?.useResponsesApi === true;
       const useOpenAICompatibleChat =
-        connection.config?.useResponsesApi !== true &&
-        isOpenAICompatibleEndpoint(connection.baseURL);
-      translated = translateOpenAIProviderOptions(modelParams.providerOptions, {
+        !useResponsesApi && isOpenAICompatibleEndpoint(connection.baseURL);
+      const { tools, ...optionsWithoutTools } =
+        modelParams.providerOptions ?? {};
+      // OpenAI-compatible chat endpoints receive `tools` on the wire like any
+      // other unknown option.
+      const hasProviderTools = tools !== undefined && !useOpenAICompatibleChat;
+      const providerOptions = hasProviderTools
+        ? optionsWithoutTools
+        : modelParams.providerOptions;
+      if (hasProviderTools) {
+        translatedTools = translateOpenAIProviderTools(tools);
+        // The Chat Completions provider drops provider-executed tools.
+        if (translatedTools.ok && translatedTools.tools && !useResponsesApi) {
+          throw new LLMValidationError({
+            code: "invalid-request",
+            message:
+              'OpenAI tools in provider options require the Responses API; enable "Use Responses API" on the LLM connection',
+          });
+        }
+      }
+      translated = translateOpenAIProviderOptions(providerOptions, {
         passthroughUnknown: useOpenAICompatibleChat,
         target: useOpenAICompatibleChat ? "openai-compatible" : "openai",
       });
@@ -677,12 +708,15 @@ function translateLegacyProviderOptions(params: {
       namespace = "openai";
       translated = translateOpenAIProviderOptions(modelParams.providerOptions);
       break;
-    case LLMAdapter.Anthropic:
+    case LLMAdapter.Anthropic: {
       namespace = "anthropic";
-      translated = translateAnthropicProviderOptions(
-        modelParams.providerOptions,
-      );
+      const { tools, ...providerOptions } = modelParams.providerOptions ?? {};
+      if (tools !== undefined) {
+        translatedTools = translateAnthropicProviderTools(tools);
+      }
+      translated = translateAnthropicProviderOptions(providerOptions);
       break;
+    }
     case LLMAdapter.Bedrock:
       namespace = "bedrock";
       translated = translateBedrockProviderOptions(modelParams.providerOptions);
@@ -730,9 +764,19 @@ function translateLegacyProviderOptions(params: {
     });
   }
 
-  return translated.value
-    ? ({ [namespace]: translated.value } as ProviderOptions)
-    : undefined;
+  if (translatedTools && !translatedTools.ok) {
+    throw new LLMValidationError({
+      code: "invalid-request",
+      message: `Unsupported ${modelParams.adapter} tools in provider options: ${translatedTools.reason}`,
+    });
+  }
+
+  return {
+    providerOptions: translated.value
+      ? ({ [namespace]: translated.value } as ProviderOptions)
+      : undefined,
+    tools: translatedTools?.tools,
+  };
 }
 
 function isOpenAIDefaultNonReasoningModel(model: string): boolean {
