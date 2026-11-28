@@ -126,7 +126,7 @@ export function buildMcpHarnessCommands(
     },
     {
       id: "copilot-cli",
-      label: "GitHub Copilot",
+      label: "Copilot",
       product: "GitHub Copilot CLI",
       icon: SiGithubcopilot,
       code: shellCommand(
