@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-object-has-own -- baseline before rule enablement */
 import { PricingTierCondition } from "../../features/model-pricing/validation";
 import { logger } from "../logger";
 import type {

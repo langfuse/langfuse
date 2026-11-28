@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-object-has-own -- baseline before rule enablement */
 import Decimal from "decimal.js";
 import { registerCustom } from "superjson";
 

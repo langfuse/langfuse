@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-object-has-own -- baseline before rule enablement */
 import { FilterCondition, FilterState } from "../../types";
 import { logger } from "../logger";
 import { encodeBooleanScoreEntry } from "../queries/clickhouse-sql/clickhouse-filter";

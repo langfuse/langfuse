@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-object-has-own -- baseline before rule enablement */
 // ============================================================================
 // USER-DEFINED TEST INPUT - ADD YOUR TEST DATA HERE
 //

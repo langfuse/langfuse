@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-object-has-own -- baseline before rule enablement */
 /**
  * Row Counting Utility for JSON Data
  *
