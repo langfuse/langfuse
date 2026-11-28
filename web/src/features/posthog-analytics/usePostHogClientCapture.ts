@@ -236,6 +236,7 @@ const events = {
     "gallery_creation_source_select",
     "empty_state_template_select",
     "empty_state_browse_library",
+    "gallery_build_with_ai",
     "alert_create_clicked",
   ],
   evaluation_rules: [

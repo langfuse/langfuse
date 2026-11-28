@@ -75,6 +75,7 @@ export type InAppAgentSubmitOptions = {
     | "add-widget-modal"
     | "command_menu"
     | "evaluators-empty-state"
+    | "evaluator-gallery"
     | "skill-editor";
 };
 
