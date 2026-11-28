@@ -97,7 +97,7 @@ export function MobileTopicsView({
         })),
         filters,
         searchQuery,
-        facet.name,
+        { name: facet.name, topics: searchTopics },
       )
         .map((row) => row.traceId)
         .sort(),
@@ -144,14 +144,11 @@ export function MobileTopicsView({
       surface,
       isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
     });
-    const topicName =
-      topicId === UNASSIGNED_TOPIC_ID
-        ? null
-        : (searchTopics.find((topic) => topic.id === topicId)?.name ?? null);
     onFiltersChange(
-      topicId === UNASSIGNED_TOPIC_ID || topicName !== null
-        ? pickedTopicFilters(facet.name, topicName)
-        : [],
+      pickedTopicFilters(
+        { name: facet.name, topics: searchTopics },
+        topicId === UNASSIGNED_TOPIC_ID ? null : topicId,
+      ),
     );
     onSearchQueryChange(null);
     showPanel("traces");

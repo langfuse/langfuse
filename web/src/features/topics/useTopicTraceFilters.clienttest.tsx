@@ -207,7 +207,7 @@ describe("Topics facet-local filters", () => {
 
   it("ignores malformed cached state", () => {
     localStorage.setItem(
-      "topics-trace-filters-v1",
+      "topics-trace-filters-v2",
       JSON.stringify({ broken: null }),
     );
     const { result } = setup();

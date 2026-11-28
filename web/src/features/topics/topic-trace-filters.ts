@@ -127,10 +127,10 @@ export function splitTopicTraceFilters(
 
 /** One topic picked in the list, treemap, or scatter, as a search-bar filter; null picks unassigned traces. */
 export function pickedTopicFilters(
-  facetName: string,
-  topicName: string | null,
+  facet: TopicFilterFacet,
+  topicId: string | null,
 ): FilterState {
-  if (topicName === null)
+  if (topicId === null)
     return [
       {
         column: "assignment",
@@ -139,15 +139,25 @@ export function pickedTopicFilters(
         value: ["assigned"],
       },
     ];
+  const label = topicFilterIndex(facet.topics).labelById.get(topicId);
+  if (label === undefined) return [];
   return [
     {
       column: "topics",
       type: "categoryOptions",
-      key: facetName,
+      key: facet.name,
       operator: "any of",
-      value: [topicName],
+      value: [label],
     },
   ];
+}
+
+/** Display/filter values for a facet's topics, appending `(<stable_id>)` only when names collide. */
+export function topicFilterLabels(
+  topics: readonly { id: string; name: string }[],
+): string[] {
+  const { labelById } = topicFilterIndex(topics);
+  return topics.map((topic) => labelById.get(topic.id) ?? topic.name);
 }
 
 /** The topic the search bar holds when it is exactly one picked topic on this facet. */
@@ -165,10 +175,11 @@ export function pickedTopicId(
     filter.operator === "any of" &&
     filter.value.length === 1
   ) {
-    const matches = facet.topics.filter(
-      (topic) => topic.name === filter.value[0],
+    const matches = resolveTopicFilterValue(
+      filter.value[0]!,
+      topicFilterIndex(facet.topics),
     );
-    return matches.length === 1 ? matches[0]!.id : null;
+    return matches.length === 1 ? matches[0]! : null;
   }
   if (
     filter?.column === "assignment" &&
@@ -185,17 +196,22 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
   rows: readonly Row[],
   filters: FilterState,
   searchQuery: string | null,
-  facetName: string,
+  facet: TopicFilterFacet,
 ): Row[] {
   const phrase = searchQuery?.trim() ?? "";
+  const index = topicFilterIndex(facet.topics);
   return rows.filter((row) => {
     if (phrase && !matchesSearch(row, phrase)) return false;
     return splitTopicTraceFilters(filters)[0].every((filter) => {
       if (filter.column === "topics") {
-        if (filter.type !== "categoryOptions" || filter.key !== facetName)
+        if (filter.type !== "categoryOptions" || filter.key !== facet.name)
           return false;
-        const matches =
-          row.topicName !== null && filter.value.includes(row.topicName);
+        const matchedIds = new Set(
+          filter.value.flatMap((value) =>
+            resolveTopicFilterValue(value, index),
+          ),
+        );
+        const matches = row.topicId !== null && matchedIds.has(row.topicId);
         return filter.operator === "any of" ? matches : !matches;
       }
       if (filter.column === "assignment") {
@@ -264,12 +280,7 @@ export function topicTraceQuery(
   const [topicFilters, traceFilters] = splitTopicTraceFilters(filters);
   if (traceFilters.length > 0) query.filter = traceFilters;
 
-  const topicIdsByName = new Map<string, string[]>();
-  for (const topic of facet.topics) {
-    const ids = topicIdsByName.get(topic.name) ?? [];
-    ids.push(topic.id);
-    topicIdsByName.set(topic.name, ids);
-  }
+  const index = topicFilterIndex(facet.topics);
 
   let include: Set<string> | undefined;
   const exclude = new Set<string>();
@@ -277,7 +288,9 @@ export function topicTraceQuery(
     if (filter.column !== "topics") continue;
     if (filter.type !== "categoryOptions" || filter.key !== facet.name)
       return null;
-    const ids = filter.value.flatMap((name) => topicIdsByName.get(name) ?? []);
+    const ids = filter.value.flatMap((value) =>
+      resolveTopicFilterValue(value, index),
+    );
     if (filter.operator === "none of") {
       ids.forEach((id) => exclude.add(id));
     } else {
@@ -341,6 +354,52 @@ export function getTopicAssignment(outcome: string) {
   )
     return outcome;
   return "no_topic";
+}
+
+type TopicFilterIndex = {
+  labelById: Map<string, string>;
+  idByLabel: Map<string, string>;
+  idsByName: Map<string, string[]>;
+};
+
+function topicFilterIndex(
+  topics: readonly { id: string; name: string }[],
+): TopicFilterIndex {
+  const nameCounts = new Map<string, number>();
+  for (const topic of topics) {
+    nameCounts.set(topic.name, (nameCounts.get(topic.name) ?? 0) + 1);
+  }
+  const taken = new Set(
+    topics
+      .filter((topic) => (nameCounts.get(topic.name) ?? 0) === 1)
+      .map((topic) => topic.name),
+  );
+  const labelById = new Map<string, string>();
+  const idByLabel = new Map<string, string>();
+  const idsByName = new Map<string, string[]>();
+  for (const topic of topics) {
+    const ids = idsByName.get(topic.name) ?? [];
+    ids.push(topic.id);
+    idsByName.set(topic.name, ids);
+    const duplicate = (nameCounts.get(topic.name) ?? 0) > 1;
+    let label = duplicate ? `${topic.name} (${topic.id})` : topic.name;
+    if (duplicate) {
+      while (taken.has(label)) label += ` (${topic.id})`;
+      taken.add(label);
+    }
+    labelById.set(topic.id, label);
+    idByLabel.set(label, topic.id);
+  }
+  return { labelById, idByLabel, idsByName };
+}
+
+function resolveTopicFilterValue(
+  value: string,
+  index: TopicFilterIndex,
+): string[] {
+  const exactId = index.idByLabel.get(value);
+  if (exactId !== undefined) return [exactId];
+  return index.idsByName.get(value) ?? [];
 }
 
 type TopicFilterFacet = {

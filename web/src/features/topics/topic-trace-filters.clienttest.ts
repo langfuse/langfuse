@@ -14,6 +14,7 @@ import {
   getTopicAssignment,
   pickedTopicFilters,
   pickedTopicId,
+  topicFilterLabels,
 } from "./topic-trace-filters";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 
@@ -77,11 +78,12 @@ const rows = [
     outcome: "awaiting_map",
   },
 ];
-const ids = (result: typeof rows) => result.map((row) => row.traceId);
+const ids = (result: readonly { traceId: string }[]) =>
+  result.map((row) => row.traceId);
 
 describe("topic trace filtering", () => {
   it("turns map and card selections into canonical filters and back", () => {
-    const billing = pickedTopicFilters("Intent", "Billing questions");
+    const billing = pickedTopicFilters(facet, "billing");
     expect(billing).toEqual([topicFilter("any of", ["Billing questions"])]);
     expect(pickedTopicId(billing, facet)).toBe("billing");
     expect(pickedTopicId(billing, facet, "invoice")).toBeNull();
@@ -97,7 +99,7 @@ describe("topic trace filtering", () => {
         facet,
       ),
     ).toBeNull();
-    const unassigned = pickedTopicFilters("Intent", null);
+    const unassigned = pickedTopicFilters(facet, null);
     expect(unassigned).toEqual([
       {
         column: "assignment",
@@ -107,6 +109,62 @@ describe("topic trace filtering", () => {
       },
     ]);
     expect(pickedTopicId(unassigned, facet)).toBe(UNASSIGNED_TOPIC_ID);
+  });
+
+  it("disambiguates duplicate topic names by stable ID while keeping bare-name queries working", () => {
+    const duplicateFacet = {
+      name: "Intent",
+      topics: [
+        { id: "one", name: "Support" },
+        { id: "two", name: "Support" },
+        { id: "three", name: "Support (one)" },
+      ],
+    };
+    expect(topicFilterLabels(duplicateFacet.topics)).toEqual([
+      "Support (one) (one)",
+      "Support (two)",
+      "Support (one)",
+    ]);
+    const picked = pickedTopicFilters(duplicateFacet, "one");
+    expect(picked).toEqual([topicFilter("any of", ["Support (one) (one)"])]);
+    expect(pickedTopicId(picked, duplicateFacet)).toBe("one");
+    expect(topicTraceQuery(picked, null, duplicateFacet)).toEqual({
+      topicIds: { operator: "any of", values: ["one"] },
+    });
+    expect(
+      ids(
+        filterTopicTraces(
+          [
+            {
+              traceId: "t1",
+              summary: null,
+              topicId: "one",
+              topicName: "Support",
+              outcome: "assigned",
+            },
+            {
+              traceId: "t2",
+              summary: null,
+              topicId: "two",
+              topicName: "Support",
+              outcome: "assigned",
+            },
+          ],
+          picked,
+          null,
+          duplicateFacet,
+        ),
+      ),
+    ).toEqual(["t1"]);
+    expect(
+      topicTraceQuery(
+        [topicFilter("any of", ["Support"])],
+        null,
+        duplicateFacet,
+      ),
+    ).toEqual({
+      topicIds: { operator: "any of", values: ["one", "two"] },
+    });
   });
 
   it("combines fields with AND and values within a field with OR", () => {
@@ -119,13 +177,13 @@ describe("topic trace filtering", () => {
         value: ["assigned"],
       },
     ];
-    expect(ids(filterTopicTraces(rows, filters, null, "Intent"))).toEqual([
+    expect(ids(filterTopicTraces(rows, filters, null, facet))).toEqual([
       "trace-one",
       "trace-two",
     ]);
-    expect(
-      ids(filterTopicTraces(rows, filters, "trace-one", "Intent")),
-    ).toEqual(["trace-one"]);
+    expect(ids(filterTopicTraces(rows, filters, "trace-one", facet))).toEqual([
+      "trace-one",
+    ]);
   });
 
   it("excludes selected topics while retaining rows without a topic", () => {
@@ -135,7 +193,7 @@ describe("topic trace filtering", () => {
           rows,
           [topicFilter("none of", ["Billing questions", "Support"])],
           null,
-          "Intent",
+          facet,
         ),
       ),
     ).toEqual(["trace-three", "trace-four", "trace-five", "trace-six"]);
@@ -157,7 +215,7 @@ describe("topic trace filtering", () => {
             },
           ],
           null,
-          "Intent",
+          facet,
         ),
       ),
     ).toEqual(["trace-four", "trace-five", "trace-six"]);
@@ -165,13 +223,13 @@ describe("topic trace filtering", () => {
 
   it("searches topic names case-insensitively and trace IDs exactly, like the server", () => {
     expect(
-      ids(filterTopicTraces(rows, [], "BILLING QUESTIONS", "Intent")),
+      ids(filterTopicTraces(rows, [], "BILLING QUESTIONS", facet)),
     ).toEqual(["trace-one"]);
-    expect(ids(filterTopicTraces(rows, [], "trace-four", "Intent"))).toEqual([
+    expect(ids(filterTopicTraces(rows, [], "trace-four", facet))).toEqual([
       "trace-four",
     ]);
-    expect(filterTopicTraces(rows, [], "TRACE-FOUR", "Intent")).toEqual([]);
-    expect(filterTopicTraces(rows, [], "refund policy", "Intent")).toEqual([]);
+    expect(filterTopicTraces(rows, [], "TRACE-FOUR", facet)).toEqual([]);
+    expect(filterTopicTraces(rows, [], "refund policy", facet)).toEqual([]);
   });
 
   it("turns filters and search into the server query, or null when nothing can match", () => {
@@ -221,17 +279,17 @@ describe("topic trace filtering", () => {
   });
 
   it("handles empty results, cleared filters and empty positive selections", () => {
-    expect(filterTopicTraces([], [], null, "Intent")).toEqual([]);
-    expect(filterTopicTraces(rows, [], " ", "Intent")).toEqual(rows);
+    expect(filterTopicTraces([], [], null, facet)).toEqual([]);
+    expect(filterTopicTraces(rows, [], " ", facet)).toEqual(rows);
     expect(
-      filterTopicTraces(rows, [topicFilter("any of", [])], null, "Intent"),
+      filterTopicTraces(rows, [topicFilter("any of", [])], null, facet),
     ).toEqual([]);
     expect(
       filterTopicTraces(
         rows,
         [topicFilter("any of", ["missing"])],
         null,
-        "Intent",
+        facet,
       ),
     ).toEqual([]);
   });

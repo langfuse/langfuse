@@ -5,6 +5,7 @@ import { TableSearchBar } from "@/src/features/search-bar/components/TableSearch
 import {
   createTopicTraceRegistry,
   TOPIC_ASSIGNMENT_OPTIONS,
+  topicFilterLabels,
 } from "./topic-trace-filters";
 
 export function TopicsTraceToolbar({
@@ -21,7 +22,7 @@ export function TopicsTraceToolbar({
   const registry = createTopicTraceRegistry(facetName, {
     traceFields: Boolean(traceFields),
   });
-  const topicNames = Array.from(new Set(topics.map((topic) => topic.name)));
+  const topicNames = topicFilterLabels(topics);
 
   return (
     <div className={cn("shrink-0", divider ? "border-b p-2" : "px-4 pt-3")}>

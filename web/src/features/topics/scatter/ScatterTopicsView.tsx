@@ -109,16 +109,13 @@ export function ScatterTopicsView({
         surface,
         isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
       });
-    let nextTopicFilters: FilterState = [];
-    if (topicId === UNASSIGNED_TOPIC_ID && topicId !== selectedTopicId) {
-      nextTopicFilters = pickedTopicFilters(facet.name, null);
-    } else if (topicId !== null && topicId !== selectedTopicId) {
-      const topicName = searchTopics.find(
-        (topic) => topic.id === topicId,
-      )?.name;
-      if (topicName !== undefined)
-        nextTopicFilters = pickedTopicFilters(facet.name, topicName);
-    }
+    const nextTopicFilters =
+      topicId === null || topicId === selectedTopicId
+        ? []
+        : pickedTopicFilters(
+            searchFacet,
+            topicId === UNASSIGNED_TOPIC_ID ? null : topicId,
+          );
     traceFilters.setSearchQuery(null);
     traceFilters.setFilters([...nextTopicFilters, ...traceFieldFilters]);
   }
@@ -170,7 +167,7 @@ export function ScatterTopicsView({
           })),
           filters,
           searchQuery,
-          facet.name,
+          { name: facet.name, topics: searchTopics },
         ).map((point) => point.traceId),
       );
     }

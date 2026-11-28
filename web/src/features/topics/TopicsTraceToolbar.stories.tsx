@@ -90,7 +90,10 @@ function ToolbarExample(args: ComponentProps<typeof TopicsTraceToolbar>) {
   const [filters, setFilters] = useState(args.filters);
   const [searchQuery, setSearchQuery] = useState(args.searchQuery);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
-  const matches = filterTopicTraces(rows, filters, searchQuery, args.facetName);
+  const matches = filterTopicTraces(rows, filters, searchQuery, {
+    name: args.facetName,
+    topics: args.topics,
+  });
   return (
     <div className="flex max-w-2xl flex-col gap-2">
       <TopicsTraceToolbar
@@ -316,7 +319,7 @@ export const UnsupportedRestoredFilter = meta.story({
 export const FacetFiltersPersist = meta.story({
   name: "(Test) Facets Remember Their Filters",
   beforeEach: () => {
-    const storageKey = "topics-trace-filters-v1";
+    const storageKey = "topics-trace-filters-v2";
     const snapshots = JSON.parse(
       localStorage.getItem(storageKey) ?? "{}",
     ) as Record<string, unknown>;
