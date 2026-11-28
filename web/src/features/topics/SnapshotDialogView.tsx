@@ -116,52 +116,50 @@ export function SnapshotDialogView({
         },
       ]}
     >
-      <Dialog.Body separators="both">
-        <div className="ph-no-capture flex flex-col gap-6">
-          <TopicSliceFields.Section label="Name">
-            <Input
-              aria-label="Snapshot name"
-              placeholder="e.g. Billing questions"
-              value={name}
-              maxLength={100}
-              onChange={(event) => onNameChange(event.target.value)}
-            />
-          </TopicSliceFields.Section>
-          <TopicSliceFields.Facets
-            facets={facets}
-            selectedIds={facetIds}
-            onChange={onFacetIdsChange}
+      <TopicSliceFields.Body>
+        <TopicSliceFields.Section label="Name">
+          <Input
+            aria-label="Snapshot name"
+            placeholder="e.g. Billing questions"
+            value={name}
+            maxLength={100}
+            onChange={(event) => onNameChange(event.target.value)}
           />
-          {filterField}
-          <div className="-mt-3 flex flex-col gap-4">
-            <CoverageBar preview={preview} extra={extra} />
-            <SummarizeSentence
-              preview={preview}
-              on={summarizeOn(summarize, preview)}
-              value={extra}
-              summarize={summarize}
-              onChange={onSummarizeChange}
-            />
-            <SnapshotSummary
-              preview={preview}
-              extra={extra}
-              facetCount={facetIds.length}
-            />
-            {costEstimate &&
-              (extra > 0 ? (
-                <TopicCostEstimateCard {...costEstimate} newTraces={extra} />
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  $0 for new summaries and embeddings. Topic naming may incur a
-                  charge.
-                </p>
-              ))}
-          </div>
-          {errors.map((message) => (
-            <TopicsErrorMessage key={message} message={message} />
-          ))}
+        </TopicSliceFields.Section>
+        <TopicSliceFields.Facets
+          facets={facets}
+          selectedIds={facetIds}
+          onChange={onFacetIdsChange}
+        />
+        {filterField}
+        <div className="-mt-3 flex flex-col gap-4">
+          <CoverageBar preview={preview} extra={extra} />
+          <SummarizeSentence
+            preview={preview}
+            on={summarizeOn(summarize, preview)}
+            value={extra}
+            summarize={summarize}
+            onChange={onSummarizeChange}
+          />
+          <SnapshotSummary
+            preview={preview}
+            extra={extra}
+            facetCount={facetIds.length}
+          />
+          {costEstimate &&
+            (extra > 0 ? (
+              <TopicCostEstimateCard {...costEstimate} newTraces={extra} />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                $0 for new summaries and embeddings. Topic naming may incur a
+                charge.
+              </p>
+            ))}
         </div>
-      </Dialog.Body>
+        {errors.map((message) => (
+          <TopicsErrorMessage key={message} message={message} />
+        ))}
+      </TopicSliceFields.Body>
     </Dialog>
   );
 }
@@ -174,8 +172,14 @@ function CoverageBar({
   preview: SnapshotPreview | null;
   extra: number;
 }) {
+  // Shaped like the bar and its legend, so the dialog doesn't grow when counts arrive.
   if (!preview)
-    return <p className="text-muted-foreground text-sm">Counting summaries…</p>;
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="bg-muted h-2 animate-pulse rounded-sm" />
+        <p className="text-muted-foreground text-xs">Counting summaries…</p>
+      </div>
+    );
   if (preview.unsummarizedCount === null)
     return (
       <p className="text-muted-foreground text-sm">
@@ -313,9 +317,24 @@ function SnapshotSummary({
 }) {
   if (!preview)
     return (
-      <div className="bg-light-blue text-dark-blue flex items-center gap-2 rounded-md px-4 py-2.5 text-sm">
-        <Layers size="base" aria-hidden="true" />
-        Counting summarized traces…
+      <div className="bg-light-blue text-dark-blue flex flex-col gap-1.5 rounded-md px-4 py-2.5 text-sm">
+        <span className="flex items-center gap-2">
+          <Layers size="base" aria-hidden="true" />
+          Counting summarized traces…
+        </span>
+        {/* Holds the summarize line's space, which usually follows the counts. */}
+        <span className="flex items-center gap-2">
+          <Sparkles size="base" aria-hidden="true" />
+          Checking which traces still need a summary…
+        </span>
+        <span className="flex items-center gap-2">
+          <Clock size="base" aria-hidden="true" />
+          Estimating how long it takes…
+        </span>
+        <span className="flex items-center gap-2">
+          <Camera size="base" aria-hidden="true" />
+          Runs once. A snapshot doesn’t change afterwards.
+        </span>
       </div>
     );
   const clustered = preview.summarizedCount + extra;

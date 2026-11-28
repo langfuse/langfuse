@@ -3,7 +3,7 @@ import { CircleAlert } from "@langfuse/icons";
 import { TopicsCenteredState } from "./TopicsCenteredState";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import { cn } from "@/src/utils/tailwind";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -43,6 +43,7 @@ export function CurrentTopics({
   traceFilters,
   showUnassigned,
   mapActions,
+  pending = false,
 }: CurrentTopicsProps) {
   const selectedFacet = result.data?.facets.find(
     (facet) => facet.facetId === selectedFacetId,
@@ -71,9 +72,11 @@ export function CurrentTopics({
   );
   return (
     <section
+      aria-busy={pending}
       className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden",
+        "flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden transition-opacity",
         empty && "hidden",
+        pending && "pointer-events-none opacity-60",
       )}
     >
       {result.error && (
@@ -281,10 +284,18 @@ export function useCurrentTopics({
         tracesResetFor.current = refreshAfter;
         utils.topics.traces.reset();
       }
-      // Kept results stay on screen while another map loads; this names their map.
-      return { ...results, fetchedForRuleId: ruleId ?? null };
+      return { ...results, ruleId };
     },
-    placeholderData: keepPreviousData,
+    // Another map's results stay until this map's arrive, marked by their `ruleId`,
+    // unless the map picker's preview already cached this map's.
+    placeholderData: (previous: CurrentTopicResults | undefined) => {
+      if (previous && previous.ruleId === ruleId) return previous;
+      const preview = utils.topics.currentResults.getData({
+        projectId,
+        ruleId,
+      });
+      return preview ? { ...preview, ruleId } : previous;
+    },
     refetchInterval: (query) => {
       if (running) return 3000;
       return pollForSummaries && !query.state.data?.hasStoredSummaries
@@ -313,6 +324,8 @@ type CurrentTopicsProps = {
   showUnassigned: boolean;
   /** Offered on phones under an empty topic list. */
   mapActions: TopicsActions;
+  /** The results shown are another map's while the selected map's load. */
+  pending?: boolean;
 };
 
 type CurrentFacetProps = {
@@ -344,6 +357,11 @@ function useMobileTraceSelection(projectId: string, facetId: string) {
       setSelection({ facetId, traceId: nextTraceId }),
   ] as const;
 }
+
+/** A rule's current topics, tagged with the rule they were requested for. */
+type CurrentTopicResults = RouterOutputs["topics"]["currentResults"] & {
+  ruleId: string | undefined;
+};
 
 function useCurrentTopicMap(projectId: string, runId: string | undefined) {
   return api.topics.map.useQuery(

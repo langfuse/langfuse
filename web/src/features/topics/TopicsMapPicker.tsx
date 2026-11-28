@@ -149,7 +149,8 @@ export function TopicsMapPicker({
         <div
           {...floatingProps}
           aria-label="Topic maps"
-          className="ph-no-capture bg-popover text-popover-foreground z-50 flex w-200 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border shadow-md"
+          // A fixed height keeps the list and its create buttons in place while a hovered map's preview loads.
+          className="ph-no-capture bg-popover text-popover-foreground z-50 flex w-200 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border shadow-md sm:h-[min(22rem,70vh)]"
         >
           <div className="flex w-full min-w-0 flex-col sm:w-2/5 sm:border-r">
             <label className="flex items-center gap-2 border-b px-4">
@@ -261,8 +262,7 @@ export function TopicsMapPicker({
           </div>
           {/* Too narrow on phones, where a tap selects before the preview could help. */}
           <div className="hidden w-3/5 min-w-0 overflow-y-auto sm:block">
-            {/* At least as tall as a map preview with three top topics, so hovering between entries keeps the popover's height. Set inside the pane so short viewports still scroll it. */}
-            <div className="min-h-89.5 p-4">
+            <div className="p-4">
               {shownRule && (
                 <RulePreview
                   key={shownRule.id}

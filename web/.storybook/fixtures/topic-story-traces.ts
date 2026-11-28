@@ -59,6 +59,7 @@ export function staticTopicTraces(
     return {
       rows: matching.slice(0, loaded) as FacetRow[],
       isLoading: false,
+      isStale: false,
       isLoadingMore: false,
       error: null,
       hasMore: matching.length > loaded,

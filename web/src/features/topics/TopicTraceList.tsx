@@ -324,7 +324,10 @@ export function TopicTraceList({
                 error: traces.error ?? undefined,
                 data: rows.map((row) => ({ ...row, id: row.traceId })),
               }}
-              className="min-h-0 overscroll-contain"
+              className={cn(
+                "min-h-0 overscroll-contain transition-opacity",
+                traces.isStale && "opacity-60",
+              )}
               cellPadding="relaxed"
               noResultsMessage={emptyMessage}
               peekView={peekView}

@@ -14,6 +14,7 @@ import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import Page from "@/src/components/layouts/Page";
 import { ErrorPage } from "@/src/components/ErrorPage";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import {
   Sheet,
   SheetContent,
@@ -33,7 +34,6 @@ import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
 import { TopicsMobileControls } from "./TopicsMobileControls";
 import { resolveTopicFacetId } from "./topic-facet-selection";
-import { Spinner } from "@/src/components/layouts/Spinner";
 import { TopicsHeaderActions } from "./TopicsHeaderActions";
 import {
   TopicsResultsViewSelect,
@@ -58,6 +58,7 @@ import {
 } from "./prepare-topics-actions";
 import { useOpenTopicsFeedback } from "./useOpenTopicsFeedback";
 import { TopicsWorkspaceGate } from "./TopicsWorkspaceGate";
+import { useTopicRuleSetupStatus } from "./useTopicRuleSetupStatus";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 import { TopicRunDetails } from "./TopicRunDetails";
 import { TopicRunHistoryList } from "./TopicRunHistoryList";
@@ -93,9 +94,11 @@ import { useTopicsCapture, useTopicsViewCapture } from "./useTopicsCapture";
 const COST_POLL_INTERVAL_MS = 30_000;
 const COST_STALE_TIME_MS = 5 * 60_000;
 
+// Only the page frame: what loads next is either the setup landing or the workspace,
+// so no placeholder shape fits both. Empty content renders the page in one step.
 const loadingPage = (
   <Page headerProps={{ title: "Topics" }}>
-    <Spinner message="Loading topics" />
+    <div aria-busy="true" aria-label="Loading topics" className="flex-1" />
   </Page>
 );
 
@@ -131,20 +134,19 @@ const usePickerCost: UsePickerCost = (projectId, map) => {
 };
 
 export default function TopicsPage() {
-  const router = useRouter();
-  const projectId =
-    typeof router.query.projectId === "string" ? router.query.projectId : "";
-  const topicsEnabled = useCanViewTopics(projectId);
+  const route = useReadyRouteParams(["projectId"]);
+  const topicsEnabled = useCanViewTopics(
+    route.ready ? route.params.projectId : null,
+  );
+  // On a hard reload the route params arrive after the first render; until then access is unknown.
+  if (!route.ready) return loadingPage;
   if (!topicsEnabled) {
     return (
       <ErrorPage title="Not found" message="This page is not available." />
     );
   }
-  return projectId ? (
-    <TopicsWorkspace key={projectId} projectId={projectId} />
-  ) : (
-    loadingPage
-  );
+  const { projectId } = route.params;
+  return <TopicsWorkspace key={projectId} projectId={projectId} />;
 }
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
@@ -156,15 +158,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
-  // The workspace mounts while facets load so its requests start alongside
-  // them. It remounts when the project later gains or loses its facets, but
-  // not when the first facets response arrives.
-  const hasFacets = facets.data ? facets.data.length > 0 : undefined;
-  const [loadedWithFacets, setLoadedWithFacets] = useState(hasFacets);
-  if (loadedWithFacets === undefined && hasFacets !== undefined)
-    setLoadedWithFacets(hasFacets);
-  const facetsChanged =
-    hasFacets !== undefined && hasFacets !== (loadedWithFacets ?? hasFacets);
+  // The workspace mounts while facets load so its requests start alongside them.
   return (
     <TopicSetupFlowController
       projectId={projectId}
@@ -174,7 +168,6 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     >
       {({ openSetup }) => (
         <TopicsWorkspaceView
-          key={facetsChanged ? "facets-changed" : "first-load"}
           projectId={projectId}
           facets={facets}
           canWrite={canWrite}
@@ -337,6 +330,7 @@ function TopicsWorkspaceContent({
     },
   );
 
+  const mapsSettled = maps.data !== undefined || maps.isError;
   const mapSelection = resolveTopicMapSelection(
     maps.data,
     typeof router.query.map === "string" ? router.query.map : undefined,
@@ -386,16 +380,7 @@ function TopicsWorkspaceContent({
   const setupRuleId = analysisId
     ? undefined
     : (selectedRule?.id ?? maps.data?.rules[0]?.id);
-  const ruleSetup = api.topics.ruleSetupStatus.useQuery(
-    { projectId, ruleId: setupRuleId ?? "" },
-    {
-      enabled: setupRuleId !== undefined,
-      refetchInterval: (query) =>
-        query.state.data && topicRuleSetupProgress(query.state.data).active
-          ? 5000
-          : false,
-    },
-  );
+  const ruleSetup = useTopicRuleSetupStatus({ projectId, ruleId: setupRuleId });
   const setup = ruleSetup.data ? topicRuleSetupProgress(ruleSetup.data) : null;
   // A finished setup hands over to results; a failure from this visit stays until retried.
   const showSetupProgress =
@@ -419,6 +404,7 @@ function TopicsWorkspaceContent({
     { projectId, executionId: analysisId ?? "" },
     {
       enabled: analysisId !== null,
+      placeholderData: keepPreviousData,
       // The results area already explains a run it can't find.
       meta: { silentHttpCodes: [404] },
       refetchInterval: (query) =>
@@ -457,25 +443,52 @@ function TopicsWorkspaceContent({
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
     refreshAfter: Math.max(refreshAfter, refitAfter),
     ruleId: selectedRule?.id,
-    enabled: !analysisId,
+    // The default map is unknown until the maps load.
+    enabled: !analysisId && mapsSettled,
   });
+  // On a map or snapshot switch, the previous results stay until the new ones arrive.
+  const switchingMap = analysisId
+    ? analysisResults.data !== undefined &&
+      analysisResults.data.execution.id !== analysisId
+    : results.data !== undefined && results.data.ruleId !== selectedRule?.id;
   const shownResults = analysisId
     ? {
         data: analysisResults.data,
         isLoading: analysisResults.isLoading,
         error: analysisResults.error,
       }
-    : results;
-  const scope = analysisId ? { analysisId } : { ruleId: selectedRule?.id };
+    : {
+        data: results.data,
+        isLoading: results.isLoading || !mapsSettled,
+        error: results.error,
+      };
+  // The page renders once, with its header, strip and results together; later
+  // loads stay inside it so its dialogs and selection survive.
+  const [firstLoadSettled, setFirstLoadSettled] = useState(false);
+  if (
+    !firstLoadSettled &&
+    (facets.isError ||
+      (facets.isSuccess &&
+        (shownResults.data !== undefined || Boolean(shownResults.error))))
+  )
+    setFirstLoadSettled(true);
+  // Traces follow the results on screen, so a switch requests no traces for stale topics.
+  const shownAnalysisId = switchingMap
+    ? analysisResults.data?.execution.id
+    : analysisId;
+  const shownAnalysis = maps.data?.analyses.find(
+    (analysis) => analysis.id === shownAnalysisId,
+  );
+  // An undefined rule means every rule, so this must not fall back with `??`.
+  const shownRuleId = switchingMap ? results.data?.ruleId : selectedRule?.id;
+  const scope = analysisId
+    ? { analysisId: shownAnalysisId ?? undefined }
+    : { ruleId: shownRuleId };
   // Until the maps load, or while another map's results are still shown, filters
   // stay unscoped so no click writes into a different map's filters. A refetch of
   // the same map keeps them.
-  const showsOtherMap =
-    !analysisId &&
-    results.data !== undefined &&
-    results.data.fetchedForRuleId !== (selectedRule?.id ?? null);
   const filterMapId =
-    !maps.data || showsOtherMap
+    !maps.data || switchingMap
       ? undefined
       : (analysisId ?? selectedRule?.id ?? null);
   const traceFilters = useTopicTraceFilters(
@@ -744,6 +757,14 @@ function TopicsWorkspaceContent({
                   options={unassignedSwitch}
                 />
               )}
+              {selectedAnalysis && (
+                <TopicMapStrip.Analysis
+                  analysis={selectedAnalysis}
+                  onViewRun={() => openExecution(selectedAnalysis.id)}
+                  controls={viewControls}
+                  options={unassignedSwitch}
+                />
+              )}
               <div
                 className={cn(
                   "flex min-h-0 flex-1 flex-col gap-2 overflow-hidden",
@@ -761,14 +782,6 @@ function TopicsWorkspaceContent({
                       />
                     )}
                   </div>
-                )}
-                {selectedAnalysis && (
-                  <TopicMapStrip.Analysis
-                    analysis={selectedAnalysis}
-                    onViewRun={() => openExecution(selectedAnalysis.id)}
-                    controls={viewControls}
-                    options={unassignedSwitch}
-                  />
                 )}
                 <TopicSetupNotice
                   notice={modelSettings.notice}
@@ -866,30 +879,35 @@ function TopicsWorkspaceContent({
                       mapBuilt={awaitingSetupMap}
                     />
                   ) : null}
-                  {analysisState &&
-                  analysisId &&
-                  analysisResults.data &&
-                  busy(analysisState.status) ? (
-                    <TopicSetupProgressView
-                      variant="snapshot"
-                      {...snapshotProgress(
-                        analysisResults.data.execution,
-                        facets.data ?? [],
+                  {analysisState && shownAnalysisId && analysisResults.data ? (
+                    // While another snapshot loads, the one on screen stays, dimmed.
+                    <div
+                      aria-busy={switchingMap || undefined}
+                      className={cn(
+                        "flex min-h-0 min-w-0 flex-1 flex-col transition-opacity",
+                        switchingMap && "pointer-events-none opacity-60",
                       )}
-                      retrying={false}
-                      canRetry={false}
-                      onViewDetails={() => openExecution(analysisId)}
-                    />
-                  ) : null}
-                  {analysisState &&
-                  analysisId &&
-                  !busy(analysisState.status) ? (
-                    <TopicAnalysisState
-                      status={analysisState.status}
-                      outcome={analysisState.outcome}
-                      traceCount={selectedAnalysis?.traceCount ?? 0}
-                      onViewRun={() => openExecution(analysisId)}
-                    />
+                    >
+                      {busy(analysisState.status) ? (
+                        <TopicSetupProgressView
+                          variant="snapshot"
+                          {...snapshotProgress(
+                            analysisResults.data.execution,
+                            facets.data ?? [],
+                          )}
+                          retrying={false}
+                          canRetry={false}
+                          onViewDetails={() => openExecution(shownAnalysisId)}
+                        />
+                      ) : (
+                        <TopicAnalysisState
+                          status={analysisState.status}
+                          outcome={analysisState.outcome}
+                          traceCount={shownAnalysis?.traceCount ?? 0}
+                          onViewRun={() => openExecution(shownAnalysisId)}
+                        />
+                      )}
+                    </div>
                   ) : null}
                   {!showOnboarding &&
                     !showBuilding &&
@@ -906,6 +924,7 @@ function TopicsWorkspaceContent({
                           tracePanelRef={setTracePanel}
                           showUnassigned={showUnassigned}
                           mapActions={actions}
+                          pending={switchingMap}
                         />
                       </div>
                     )}
@@ -921,7 +940,7 @@ function TopicsWorkspaceContent({
     </TopicSliceDialogController>
   );
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+    <TopicsWorkspaceGate isLoading={!firstLoadSettled} fallback={loadingPage}>
       {workspace}
     </TopicsWorkspaceGate>
   );

@@ -15,6 +15,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 
 const state = vi.hoisted(() => ({
   canViewTopics: true,
+  routeProjectId: "project" as string | undefined,
   status: "failed",
   executionUpdatedAt: 110,
   updatedAt: "2026-09-23T12:00:00Z",
@@ -82,7 +83,7 @@ vi.mock("@/src/components/layouts/page-header-controls-slot", () => ({
 vi.mock("next/router", () => ({
   useRouter: () => ({
     query: {
-      projectId: "project",
+      projectId: state.routeProjectId,
       executionId: state.executionId,
       map: state.map,
     },
@@ -144,36 +145,40 @@ vi.mock("./AutomaticProcessingDialogController", () => ({
     children: (control: { openDialog: () => void }) => ReactNode;
   }) => children({ openDialog: state.openAutomaticProcessing }),
 }));
+vi.mock("./useTopicRuleSetupStatus", () => ({
+  useTopicRuleSetupStatus: () => ({ data: null }),
+}));
 vi.mock("./CurrentTopics", () => ({
   useCurrentTopics: (input: {
     running: boolean;
     refreshAfter: number;
     timeRange: { from: Date; to: Date };
+    enabled?: boolean;
   }) => {
     useState(() => state.workspaceMounts++);
     state.currentTopics(input);
     return {
       ...input,
-      data: state.resultsDataAvailable
-        ? {
-            hasStoredSummaries: state.hasStoredSummaries,
-            facets: state.resultFacets,
-          }
-        : undefined,
+      data:
+        state.resultsDataAvailable && input.enabled !== false
+          ? {
+              hasStoredSummaries: state.hasStoredSummaries,
+              facets: state.resultFacets,
+            }
+          : undefined,
       isLoading: false,
     };
   },
-  CurrentTopics: ({
-    result,
-  }: {
-    result: { running: boolean; refreshAfter: number };
-  }) => (
-    <div
-      data-testid="current-topics"
-      data-running={result.running}
-      data-refresh-after={result.refreshAfter}
-    ></div>
-  ),
+  CurrentTopics: () => {
+    const input = state.currentTopics.mock.lastCall?.[0];
+    return (
+      <div
+        data-testid="current-topics"
+        data-running={input?.running}
+        data-refresh-after={input?.refreshAfter}
+      ></div>
+    );
+  },
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -266,9 +271,9 @@ vi.mock("@/src/utils/api", () => ({
                 })),
                 analyses: [],
               }),
+          isError: false,
         }),
       },
-      ruleSetupStatus: { useQuery: () => ({ data: null }) },
       ruleMapCosts: {
         useQuery: (
           input: { projectId: string },
@@ -287,7 +292,21 @@ vi.mock("@/src/utils/api", () => ({
           mutateAsync: vi.fn(),
         }),
       },
-      analysisResults: { useQuery: () => ({}) },
+      analysisResults: {
+        useQuery: (
+          input: { executionId: string },
+          options: { enabled: boolean },
+        ) =>
+          options.enabled
+            ? {
+                data: {
+                  hasStoredSummaries: true,
+                  facets: [],
+                  execution: { id: input.executionId, status: "completed" },
+                },
+              }
+            : {},
+      },
       // The map picker's preview pane.
       currentResults: { useQuery: () => ({ isLoading: false }) },
       retry: {
@@ -358,6 +377,7 @@ beforeEach(() => {
     },
   );
   state.canViewTopics = true;
+  state.routeProjectId = "project";
   state.resultsDataAvailable = true;
   state.mobileHeader = false;
   state.resultFacets = [];
@@ -408,6 +428,13 @@ it("shows Not found instead of the workspace when the Topics gate is closed", ()
   renderTopicsPage();
   expect(screen.getByText("This page is not available.")).toBeTruthy();
   expect(state.currentTopics).not.toHaveBeenCalled();
+});
+
+it("shows the loading page, not Not found, until the route params arrive", () => {
+  state.routeProjectId = undefined;
+  renderTopicsPage();
+  expect(screen.queryByText("This page is not available.")).toBeNull();
+  expect(screen.getByLabelText("Loading topics")).toBeTruthy();
 });
 
 it("keeps the question picker reachable with the mobile header", () => {
@@ -591,6 +618,57 @@ it.each([
   },
 );
 
+const oneRuleMaps = {
+  rules: [
+    {
+      id: "rule-1",
+      projectId: "project",
+      name: "All generations",
+      filter: [],
+      sampling: 1,
+      facetIds: ["intent"],
+      enabled: true,
+      updatedAt: "2026-11-01T00:00:00Z",
+      lastRefitAt: "2026-11-01T00:00:00Z",
+      refresh: { availableAt: null, running: false },
+    },
+  ],
+  analyses: [],
+};
+
+it("shows one loading page until the default map's results load", () => {
+  withSummaries();
+  state.rulesPending = true;
+  const view = renderTopicsPage();
+  expect(state.currentTopics).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: false }),
+  );
+  expect(screen.queryByTestId("current-topics")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Edit map" })).toBeNull();
+
+  state.rulesPending = false;
+  state.maps = oneRuleMaps;
+  state.resultsDataAvailable = false;
+  view.rerender(<TopicsPage />);
+  expect(state.currentTopics).toHaveBeenLastCalledWith(
+    expect.objectContaining({ enabled: true, ruleId: "rule-1" }),
+  );
+  expect(screen.queryByTestId("current-topics")).toBeNull();
+
+  state.resultsDataAvailable = true;
+  view.rerender(<TopicsPage />);
+  expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Edit map" })).toBeInTheDocument();
+});
+
+it("keeps the workspace mounted when setup gives the project its first facets", () => {
+  state.hasStoredSummaries = false;
+  const view = renderTopicsPage();
+  state.facets = [facet("intent", [1])];
+  view.rerender(<TopicsPage />);
+  expect(state.workspaceMounts).toBe(1);
+});
+
 it("leaves creating and refreshing maps to the map picker, not the menu", async () => {
   withSummaries();
   renderTopicsPage();
@@ -608,23 +686,7 @@ it.each([
 ])("shows Edit map as a header button $access", async ({ canWrite }) => {
   withSummaries();
   state.canWrite = canWrite;
-  state.maps = {
-    rules: [
-      {
-        id: "rule-1",
-        projectId: "project",
-        name: "All generations",
-        filter: [],
-        sampling: 1,
-        facetIds: ["intent"],
-        enabled: true,
-        updatedAt: "2026-11-01T00:00:00Z",
-        lastRefitAt: "2026-11-01T00:00:00Z",
-        refresh: { availableAt: null, running: false },
-      },
-    ],
-    analyses: [],
-  };
+  state.maps = oneRuleMaps;
   renderTopicsPage();
   const editMap = screen.getByRole("button", { name: "Edit map" });
   expect(editMap).toHaveProperty("disabled", !canWrite);

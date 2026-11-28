@@ -1,5 +1,5 @@
 import { PINCH_ZOOM_RATE } from "@/src/utils/panZoomGestures";
-import { PAGE_SIZE } from "./TopicMobileTraceList";
+import { PAGE_SIZE, TopicMobileTraceList } from "./TopicMobileTraceList";
 import { useState, type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
@@ -607,5 +607,58 @@ export const KeepPageAfterRefresh = meta.story({
     await expect(
       canvas.queryByRole("button", { name: selectedName }),
     ).not.toBeInTheDocument();
+  },
+});
+
+export const NewTopicOpensFirstPage = meta.story({
+  name: "(Test) A new topic opens on page 1 while its rows load",
+  render: function NewTopicOpensFirstPage() {
+    const [stage, setStage] = useState<"first" | "loading" | "loaded">("first");
+    const nextRows = Array.from({ length: PAGE_SIZE + 5 }, (_, index) => ({
+      ...rows[0]!,
+      traceId: `next-${index}`,
+    }));
+    const result = {
+      rows: stage === "loaded" ? nextRows : rows,
+      isLoading: false,
+      isStale: stage === "loading",
+      isLoadingMore: false,
+      error: null,
+      hasMore: false,
+      loadMore: fn(),
+    };
+    return (
+      <>
+        <Button
+          text={stage === "first" ? "Pick next topic" : "Load next topic"}
+          onClick={() => setStage(stage === "first" ? "loading" : "loaded")}
+        />
+        <TopicMobileTraceList
+          filterKey={stage === "first" ? "first" : "next"}
+          traces={result}
+          selectedTraceId={rows[PAGE_SIZE]!.traceId}
+          onOpenTrace={fn()}
+        >
+          {null}
+        </TopicMobileTraceList>
+      </>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", {
+        name: `Open trace ${rows[PAGE_SIZE]!.traceId}`,
+      }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Pick next topic" }),
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Load next topic" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Open trace next-0" }),
+    ).toBeVisible();
   },
 });

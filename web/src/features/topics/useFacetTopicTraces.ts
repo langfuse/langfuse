@@ -14,10 +14,12 @@ export function useFacetTopicTraces(
   query: TopicTraceQuery | null,
 ): TopicTracesResult {
   const source = useContext(FacetTraceSource);
+  const projectId = source?.projectId ?? "";
+  const facetId = source?.facetId ?? "";
   const result = api.topics.traces.useInfiniteQuery(
     {
-      projectId: source?.projectId ?? "",
-      facetId: source?.facetId ?? "",
+      projectId,
+      facetId,
       ruleId: source?.ruleId,
       analysisId: source?.analysisId,
       ...query,
@@ -25,6 +27,15 @@ export function useFacetTopicTraces(
     {
       enabled: Boolean(source) && query !== null,
       getNextPageParam: (page) => page.nextCursor ?? undefined,
+      // The previous rows stay, dimmed, until these load; only another project starts empty.
+      placeholderData: (previous, previousQuery) =>
+        (
+          previousQuery?.queryKey[1] as
+            | { input?: { projectId?: string } }
+            | undefined
+        )?.input?.projectId === projectId
+          ? previous
+          : undefined,
       meta: { toastOperation: "topics.load" },
     },
   );
@@ -33,6 +44,7 @@ export function useFacetTopicTraces(
     return {
       rows: [],
       isLoading: false,
+      isStale: false,
       isLoadingMore: false,
       error: null,
       hasMore: false,
@@ -41,6 +53,7 @@ export function useFacetTopicTraces(
   return {
     rows: result.data?.pages.flatMap((page) => page.rows) ?? [],
     isLoading: result.isLoading,
+    isStale: result.isPlaceholderData,
     isLoadingMore: result.isFetchingNextPage,
     error: result.error?.message ?? null,
     hasMore: Boolean(result.hasNextPage),

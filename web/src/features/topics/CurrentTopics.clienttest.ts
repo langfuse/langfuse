@@ -13,11 +13,14 @@ import {
   useTracesWithSelection,
 } from "./facet-topics";
 
-const { fetchResults, resetTraces, capture } = vi.hoisted(() => ({
-  fetchResults: vi.fn(),
-  resetTraces: vi.fn(),
-  capture: vi.fn(),
-}));
+const { fetchResults, resetTraces, capture, previewResults } = vi.hoisted(
+  () => ({
+    fetchResults: vi.fn(),
+    resetTraces: vi.fn(),
+    capture: vi.fn(),
+    previewResults: new Map<string | undefined, unknown>(),
+  }),
+);
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProject: () => ({
     project: { id: "project" },
@@ -34,7 +37,13 @@ vi.mock("@/src/utils/api", () => ({
     },
     useUtils: () => ({
       client: { topics: { currentResults: { query: fetchResults } } },
-      topics: { traces: { reset: resetTraces } },
+      topics: {
+        traces: { reset: resetTraces },
+        currentResults: {
+          getData: ({ ruleId }: { ruleId?: string }) =>
+            previewResults.get(ruleId),
+        },
+      },
     }),
   },
 }));
@@ -54,6 +63,7 @@ beforeEach(() => {
 afterEach(() => {
   client.clear();
   sessionStorage.clear();
+  previewResults.clear();
   vi.useRealTimers();
 });
 
@@ -98,12 +108,12 @@ describe("current Topics query", () => {
         createElement(QueryClientProvider, { client }, children),
     });
     await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(view.result.current.data?.fetchedForRuleId).toBe("rule-a");
+    expect(view.result.current.data?.ruleId).toBe("rule-a");
     // While rule B loads, rule A's results stay and still name rule A.
     view.rerender({ ...props, ruleId: "rule-b" });
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(view.result.current.isPlaceholderData).toBe(true);
-    expect(view.result.current.data?.fetchedForRuleId).toBe("rule-a");
+    expect(view.result.current.data?.ruleId).toBe("rule-a");
   });
 
   it("fetches final results while an old poll is in flight, then stops polling", async () => {
@@ -137,7 +147,7 @@ describe("current Topics query", () => {
     expect(view.result.current.data).toEqual({
       hasStoredSummaries: false,
       facets: [facet],
-      fetchedForRuleId: null,
+      ruleId: undefined,
     });
 
     let finishOldPoll:
@@ -186,7 +196,7 @@ describe("current Topics query", () => {
     expect(view.result.current.data).toEqual({
       hasStoredSummaries: true,
       facets: completed,
-      fetchedForRuleId: null,
+      ruleId: undefined,
     });
     expect(resetTraces).toHaveBeenCalledOnce();
 
@@ -229,6 +239,45 @@ describe("current Topics query", () => {
     await act(() => vi.advanceTimersByTimeAsync(30000));
     expect(fetchResults).toHaveBeenCalledTimes(2);
   });
+  it("shows a switched-to map's previewed results, else the previous map's marked by rule", async () => {
+    const results = (name: string) => ({
+      hasStoredSummaries: true,
+      facets: [{ facetId: "intent", name }],
+    });
+    fetchResults.mockReset().mockResolvedValueOnce(results("Support"));
+    const props = {
+      projectId: "project",
+      running: false,
+      refreshAfter: 0,
+      ruleId: "support",
+    };
+    const view = renderHook(__test.useCurrentTopics, {
+      initialProps: props,
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client }, children),
+    });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(view.result.current.data).toEqual({
+      ...results("Support"),
+      ruleId: "support",
+    });
+
+    fetchResults.mockResolvedValueOnce(results("Billing"));
+    previewResults.set("billing", results("Billing"));
+    view.rerender({ ...props, ruleId: "billing" });
+    expect(view.result.current.data).toEqual({
+      ...results("Billing"),
+      ruleId: "billing",
+    });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    fetchResults.mockImplementation(() => new Promise(() => {}));
+    view.rerender({ ...props, ruleId: "sales" });
+    expect(view.result.current.data).toEqual({
+      ...results("Billing"),
+      ruleId: "billing",
+    });
+  });
 });
 
 describe("trace selection", () => {
@@ -246,6 +295,7 @@ describe("trace selection", () => {
     rows:
       query === null ? [] : (query.traceId ? [query.traceId] : loaded).map(row),
     isLoading: false,
+    isStale: false,
     isLoadingMore: false,
     error: null,
     hasMore: false,
@@ -260,6 +310,17 @@ describe("trace selection", () => {
     expect(listed({}, "older")).toEqual(["newest", "older"]);
     expect(listed({}, "picked")).toEqual(["picked", "newest", "older"]);
     expect(listed({ traceId: "searched" }, "picked")).toEqual(["searched"]);
+  });
+
+  it("leaves out a pinned row kept from the previous lookup", () => {
+    const staleLookup = (query: TopicTraceQuery | null) => ({
+      ...fakeTraces(query),
+      isStale: query?.traceId !== undefined,
+    });
+    const rows = renderHook(() =>
+      useTracesWithSelection(staleLookup, {}, "picked"),
+    ).result.current.rows.map((item) => item.traceId);
+    expect(rows).toEqual(loaded);
   });
 });
 

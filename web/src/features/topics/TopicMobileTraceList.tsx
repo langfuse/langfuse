@@ -31,9 +31,10 @@ export function TopicMobileTraceList({
   const { rows } = traces;
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
-  const selectedRowIndex = rows.findIndex(
-    (row) => row.traceId === selectedTraceId,
-  );
+  // Dimmed rows from the previous topic must not decide which page opens.
+  const selectedRowIndex = traces.isStale
+    ? -1
+    : rows.findIndex((row) => row.traceId === selectedTraceId);
   const [pageRequest, setPageRequest] = useState(() => ({
     filterKey,
     selectedTraceId,
@@ -126,7 +127,12 @@ export function TopicMobileTraceList({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
         {children}
-        <ul className="divide-y">
+        <ul
+          className={cn(
+            "divide-y transition-opacity",
+            traces.isStale && "opacity-60",
+          )}
+        >
           {pageRows.map((row) => (
             <li key={row.traceId}>
               <button
