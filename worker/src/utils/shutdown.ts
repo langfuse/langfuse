@@ -21,6 +21,7 @@ import {
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
   eventsDispatchTranscriptCleaner,
+  otelShadowRowVerifier,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
   inAppAgentIntegrityRunner,
@@ -90,6 +91,9 @@ const runDrainAndClose = async () => {
 
   // Stop events-dispatch transcript cleaner
   eventsDispatchTranscriptCleaner?.stop();
+
+  // Comparisons still waiting for their rows are dropped.
+  otelShadowRowVerifier?.stop();
 
   // Stop batch trace deletion cleaner
   batchTraceDeletionCleaner?.stop();

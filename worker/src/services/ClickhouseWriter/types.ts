@@ -22,6 +22,7 @@ export enum TableName {
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
   EventsFull = "events_full", // Primary write target - MV auto-populates events_core
+  EventsNativeTest = "events_native_test", // Rows of the sampled Rust shadow run; expire by TTL
   TopicFacetSummaries = "topic_facet_summaries",
   TopicAssignments = "topic_assignments",
 }

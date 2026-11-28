@@ -74,3 +74,36 @@ Raw ingress limits and byte-length telemetry remain pre-media measurements. Trac
 `LANGFUSE_OTEL_DIRECT_IMPLEMENTATION=rust` selects Rust for direct events-table writes in projects admitted by the early-media selector. It requires early extraction; media uploads remain optional. Unselected projects keep the original TypeScript path. Legacy writes remain in TypeScript in dual-write mode; events-only Rust jobs skip constructing the TypeScript span graph. The Rust path retains the native media registry through normalization and service calls.
 
 Native errors reject the job without falling back to TypeScript processing.
+
+## Rust shadow run
+
+With TypeScript as the direct writer, `LANGFUSE_OTEL_NATIVE_SHADOW_SAMPLE_RATE` (0 to 1, default 0) selects a share of batches that the Rust path processes as well, and the worker compares the two. The Rust run writes rows to `events_native_test` only. It uploads no media and makes no evaluation or trace-activity write.
+
+**Setup.** Only projects that use early media extraction are sampled. Run `otel-shadow-table.sql`, one of the shared package's ClickHouse scripts, in the ingestion writer's database before raising the rate; `pnpm --filter=shared run ch:dev-tables` does it locally. It is not a migration, so drop and recreate the table after a migration changes the `events_full` columns. Rows expire early on the next UTC day.
+
+**Reading a comparison.** Metrics use the prefix `langfuse.ingestion.otel.shadow.`; the Rust run's own metrics are named `langfuse.shadow.*`.
+
+`batch` by `result`:
+
+- `both_ok`, `rust_failed`, `ts_failed`, `both_failed`: which path failed, with the failure class in `ts_error` and `rust_error`. `row_keys` says whether both wrote the same rows in this attempt; rows left by an earlier attempt of the same file can make the stored rows match when the attempts did not. It is `unchecked` when TypeScript could not build or write a span's row. `eval_writes` and `eval_snapshots` say whether both made the same evaluation writes, and are `unchecked` when one of TypeScript's evaluation writes failed.
+- `throttled`: selected by the rate but not sampled, because too many rows waited to be compared on that worker. An `OTEL shadow sampling is throttled` warning gives the effective rate.
+- `skipped`: sampled, but the worker was at its limit of Rust runs in flight.
+
+`rows` by `outcome`:
+
+- `matched`: both paths stored the row with equal columns.
+- `different`: both paths stored the row and another column differs; `rows.changed_column` names it.
+- `missing_rust`, `missing_ts`: the named path has no row under that file, trace id, span id and start time. A span the two paths store under different start times counts as both.
+- `not_found`: neither table had the row when it was read.
+- `read_error`, `unverified`: the read failed, or the row's start time was not readable.
+
+For `duration_ms`, compare only batches tagged `side_effects:none` and `write_mode:events_only`.
+
+**Limits.**
+
+- A failed TypeScript media upload shows as a `different` row, because the Rust run does not upload.
+- Rows that reach ClickHouse after the comparison read count as missing, or as `not_found` when both sides are late.
+- A span sent twice, such as an exporter retry, is stored in two files but keeps one row in `events_full`. When the kept row belongs to the other file, the sampled file's span counts as `missing_ts`.
+- A batch whose TypeScript processing fails before the direct step is not compared.
+- The Rust addon records five counters under their production names, so they read high by the sample rate: `langfuse.ingestion.otel.conversion_failure`, `langfuse.ingestion.metadata_dropped`, `langfuse.ingestion.metadata_undecoded`, `langfuse.ingestion.usage_details.validation_failure` and `langfuse.ingestion.usage_details.total_mismatch`.
+- A model, prompt or rule lookup that fails during the Rust run only, or a rule lookup that fails for TypeScript only, can show as `different` in `row_keys` or `eval_writes`.

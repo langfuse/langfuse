@@ -346,5 +346,14 @@ clickhouse client \
 
 EOF
 
+# The table the sampled Rust OTEL shadow run writes to.
+clickhouse client \
+  --host="${CLICKHOUSE_HOST}" \
+  --port="${CLICKHOUSE_PORT}" \
+  --user="${CLICKHOUSE_USER}" \
+  --password="${CLICKHOUSE_PASSWORD}" \
+  --database="${CLICKHOUSE_DB}" \
+  --queries-file "$(dirname "$0")/otel-shadow-table.sql"
+
 echo "Development tables created successfully (or already exist)."
 echo ""

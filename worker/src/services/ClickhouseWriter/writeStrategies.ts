@@ -34,7 +34,7 @@ export type ClickhouseWriteStrategy<Row> = {
 };
 
 export type ClickhouseWriteStrategyFactory<Row> = {
-  readonly format: "json" | "native";
+  readonly format: "json" | "native" | "native-test";
   create(): ClickhouseWriteStrategy<Row>;
 };
 
@@ -128,5 +128,11 @@ function createNativeWriteStrategy(): ClickhouseWriteStrategy<PreparedEvent> {
 export const nativeWriteStrategyFactory: ClickhouseWriteStrategyFactory<PreparedEvent> =
   {
     format: "native",
+    create: createNativeWriteStrategy,
+  };
+
+export const nativeTestWriteStrategyFactory: ClickhouseWriteStrategyFactory<PreparedEvent> =
+  {
+    format: "native-test",
     create: createNativeWriteStrategy,
   };
