@@ -79,7 +79,7 @@ impl Provider {
     /// Embeddings. xAI serves only the `OpenAI` Responses and Chat Completions formats,
     /// Google AI Studio only Chat Completions and Embeddings, and Vertex AI only its
     /// OpenAI-compatible Chat Completions endpoint.
-    fn supports(self, api_format: ApiFormat) -> bool {
+    pub(crate) fn supports(self, api_format: ApiFormat) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic => api_format.provider() == self,
             Self::OpenRouter | Self::Azure => api_format != ApiFormat::OpenAiDecisions,
@@ -121,7 +121,7 @@ impl Provider {
     // serves each format family under its own path. Bedrock and Vertex AI only
     // ever target their regional endpoints, and xAI, Vercel and Google AI Studio
     // their single hosted API.
-    fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
+    pub(crate) fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
         match self {
             Self::OpenAi | Self::Anthropic | Self::OpenRouter => valid_custom_base_url(base_url),
             Self::Azure => {
@@ -140,6 +140,21 @@ impl Provider {
             Self::GoogleAiStudio => base_url == GOOGLE_AI_STUDIO_BASE_URL,
             Self::Vertex => vertex::allows_openai_compatible_base_url(base_url),
         }
+    }
+
+    /// Bedrock's and Vertex AI's regional hosts and the official origins are fixed, so only a
+    /// user-entered base URL goes through the outbound policy.
+    pub(crate) fn has_custom_base_url(self, base_url: &str) -> bool {
+        let official = match self {
+            Self::OpenAi => OPENAI_BASE_URL,
+            Self::Anthropic => ANTHROPIC_BASE_URL,
+            Self::OpenRouter => OPENROUTER_BASE_URL,
+            Self::Azure => return true,
+            Self::Bedrock | Self::Xai | Self::Vercel | Self::GoogleAiStudio | Self::Vertex => {
+                return false;
+            }
+        };
+        base_url.trim_end_matches('/') != official
     }
 }
 
@@ -274,18 +289,7 @@ impl ProviderConnection {
     /// Bedrock's and Vertex AI's regional hosts and the official origins are fixed, so only a
     /// user-entered base URL goes through the outbound policy.
     pub fn has_custom_base_url(&self) -> bool {
-        let official = match self.provider {
-            Provider::OpenAi => OPENAI_BASE_URL,
-            Provider::Anthropic => ANTHROPIC_BASE_URL,
-            Provider::OpenRouter => OPENROUTER_BASE_URL,
-            Provider::Azure => return true,
-            Provider::Bedrock
-            | Provider::Xai
-            | Provider::Vercel
-            | Provider::GoogleAiStudio
-            | Provider::Vertex => return false,
-        };
-        self.base_url.trim_end_matches('/') != official
+        self.provider.has_custom_base_url(&self.base_url)
     }
     pub fn credential(&self) -> ProviderCredential<'_> {
         self.auth.credential()
@@ -315,7 +319,7 @@ const RESERVED_EXTRA_HEADERS: &[&str] = &[
     "x-api-key",
 ];
 
-fn valid_extra_header(name: &str, value: &str) -> bool {
+pub(crate) fn valid_extra_header(name: &str, value: &str) -> bool {
     axum::http::HeaderName::from_bytes(name.as_bytes()).is_ok_and(|name| {
         !RESERVED_EXTRA_HEADERS.contains(&name.as_str()) && !name.as_str().starts_with("proxy-")
     }) && axum::http::HeaderValue::from_str(value).is_ok()

@@ -9,7 +9,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
 import { ChoiceOptionsEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/ChoiceOptionsEditor/ChoiceOptionsEditor";
-import { NoulCriteriaEditor } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/NoulCriteriaEditor/NoulCriteriaEditor";
+import { NoulCriteriaEditor } from "@/src/components/NoulCriteriaEditor/NoulCriteriaEditor";
 import { QuestionInstructionsField } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionInstructionsField/QuestionInstructionsField";
 import {
   QUESTION_TYPE_COPY,

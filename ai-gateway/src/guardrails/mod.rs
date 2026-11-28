@@ -7,6 +7,7 @@
 //! verdict. Each API format's capture module finds the request's last turn
 //! (`capture::request_spec`), and `response` extracts provider output blocks.
 pub(crate) mod bedrock;
+pub(crate) mod decision_model;
 pub(crate) mod external;
 pub(crate) mod lakera;
 pub(crate) mod openai_moderation;
@@ -31,7 +32,7 @@ use crate::{
     inference::MemoryReservation,
     observability::{ErrorOrigin, RequestObservation},
     providers::OutboundPolicy,
-    resolution::{ApiFormat, ResolutionError, ResolvedRequestContext},
+    resolution::{ApiFormat, Provider, ResolutionError, ResolvedRequestContext},
 };
 use external::{
     ExternalBlock, ExternalFailureKind, ExternalFields, ExternalGuardrail, ExternalGuardrailClient,
@@ -517,7 +518,19 @@ impl<'de> Deserialize<'de> for Guardrail {
             #[serde(default)]
             project_id: Option<String>,
             #[serde(default)]
+            provider: Option<Provider>,
+            #[serde(default)]
+            base_url: Option<String>,
+            #[serde(default)]
+            model: Option<String>,
+            #[serde(default)]
+            instructions: Option<String>,
+            #[serde(default)]
+            threshold: Option<f64>,
+            #[serde(default)]
             api_key: Option<SecretString>,
+            #[serde(default)]
+            extra_headers: std::collections::BTreeMap<String, SecretString>,
         }
 
         let raw = RawGuardrail::deserialize(deserializer)?;
@@ -533,7 +546,13 @@ impl<'de> Deserialize<'de> for Guardrail {
                     guardrail_version: raw.guardrail_version,
                     region: raw.region,
                     project_id: raw.project_id,
+                    provider: raw.provider,
+                    base_url: raw.base_url,
+                    model: raw.model,
+                    instructions: raw.instructions,
+                    threshold: raw.threshold,
                     api_key: raw.api_key,
+                    extra_headers: raw.extra_headers,
                 };
                 match ExternalGuardrail::from_resolve(kind, fields) {
                     Ok(Some(external)) => GuardrailKind::External(external),

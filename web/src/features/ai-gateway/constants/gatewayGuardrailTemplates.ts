@@ -1,4 +1,4 @@
-import type { IconComponent } from "@langfuse/icons";
+import { Split, type IconComponent } from "@langfuse/icons";
 import { AwsColorMark, LakeraMark } from "@langfuse/icons/brand";
 import { SiAmazonwebservices, SiOpenai } from "@langfuse/icons/si";
 import type {
@@ -6,6 +6,7 @@ import type {
   GatewayGuardrailType,
 } from "@langfuse/shared/src/db";
 
+import { GATEWAY_GUARDRAILS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import {
   GATEWAY_GUARDRAIL_PRESETS_BY_GROUP,
   type GatewayGuardrailPreset,
@@ -14,7 +15,7 @@ import {
 
 export type GatewayGuardrailTemplatePreview =
   | { kind: "snippet"; label: string; value: string }
-  | { kind: "logo"; provider: "aws" | "openai" | "lakera" };
+  | { kind: "logo"; provider: "aws" | "openai" | "lakera" | "decision_model" };
 
 export type GatewayGuardrailTemplate = {
   id: GatewayGuardrailTemplateKind;
@@ -255,6 +256,29 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
       defaultPresets: [],
       sampleTestText: "",
     },
+    {
+      id: "decision_model",
+      guardrailType: "DECISION_MODEL",
+      name: "Decision model",
+      description:
+        "Evaluates prompts with a yes/no question using a decision model on your gateway.",
+      preview: {
+        kind: "logo",
+        provider: "decision_model",
+      },
+      external: {
+        description:
+          "Asks a decision model on one of your existing gateway connections a yes/no question and triggers when the probability meets your threshold.",
+        docsLabel: "Guardrails documentation",
+        docsHref: GATEWAY_GUARDRAILS_DOCS_URL,
+        hint: "Yes/no question & threshold",
+        icon: Split,
+        badgeIcon: Split,
+      },
+      presets: [],
+      defaultPresets: [],
+      sampleTestText: "",
+    },
   ];
 
 const TEMPLATE_GUARDRAIL_TYPE: Record<
@@ -269,6 +293,7 @@ const TEMPLATE_GUARDRAIL_TYPE: Record<
   bedrock: "BEDROCK",
   openai_moderation: "OPENAI_MODERATION",
   lakera: "LAKERA",
+  decision_model: "DECISION_MODEL",
 };
 
 export function getGuardrailTypeForTemplate(

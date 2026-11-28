@@ -66,7 +66,8 @@ export type GatewayGuardrailTemplateKind =
   | "custom_regex"
   | "bedrock"
   | "openai_moderation"
-  | "lakera";
+  | "lakera"
+  | "decision_model";
 
 /**
  * Built-in rules a regex guardrail can use. Resolve sends the patterns, so the
@@ -457,6 +458,59 @@ export type GatewayLakeraGuardrailConfig = z.infer<
   typeof GatewayLakeraGuardrailConfigSchema
 >;
 
+/** Gateway providers whose connections can serve OpenAI-compatible `/v1/decisions`. */
+export const GATEWAY_DECISION_MODEL_PROVIDERS = ["OPENAI", "VERCEL"] as const;
+
+export const GATEWAY_DECISION_MODEL_DEFAULT_THRESHOLD = 0.7;
+const DECISION_MODEL_MAX_QUESTION_LENGTH = 4_000;
+const DECISION_MODEL_MAX_CRITERIA_LENGTH = 2_000;
+const DECISION_MODEL_ID_MAX_LENGTH = 500;
+
+const optionalDecisionModelCriteriaTextSchema = z
+  .string()
+  .trim()
+  .max(
+    DECISION_MODEL_MAX_CRITERIA_LENGTH,
+    `Criteria must be at most ${DECISION_MODEL_MAX_CRITERIA_LENGTH} characters`,
+  )
+  .transform((value) => value || undefined)
+  .optional();
+
+const GatewayDecisionModelGuardrailConfigSchema = z.object({
+  connectionId: z.string().trim().min(1, "Select a connection"),
+  model: z
+    .string()
+    .trim()
+    .min(1, "Select a model")
+    .max(
+      DECISION_MODEL_ID_MAX_LENGTH,
+      `Model must be at most ${DECISION_MODEL_ID_MAX_LENGTH} characters`,
+    ),
+  question: z
+    .string()
+    .trim()
+    .min(1, "Enter a yes/no question")
+    .max(
+      DECISION_MODEL_MAX_QUESTION_LENGTH,
+      `Question must be at most ${DECISION_MODEL_MAX_QUESTION_LENGTH} characters`,
+    ),
+  criteria: z
+    .object({
+      true: optionalDecisionModelCriteriaTextSchema,
+      false: optionalDecisionModelCriteriaTextSchema,
+    })
+    .transform((value) => (value.true || value.false ? value : undefined))
+    .optional(),
+  threshold: z
+    .number({ error: "Enter a threshold between 0 and 1" })
+    .min(0, "Threshold must be between 0 and 1")
+    .max(1, "Threshold must be between 0 and 1"),
+});
+
+export type GatewayDecisionModelGuardrailConfig = z.infer<
+  typeof GatewayDecisionModelGuardrailConfigSchema
+>;
+
 const GatewayGuardrailSecretPrefixSchema = z
   .string()
   .min(
@@ -517,6 +571,7 @@ export const GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS = {
   BEDROCK: GatewayBedrockGuardrailConfigSchema,
   OPENAI_MODERATION: GatewayOpenAiModerationGuardrailConfigSchema,
   LAKERA: GatewayLakeraGuardrailConfigSchema,
+  DECISION_MODEL: GatewayDecisionModelGuardrailConfigSchema,
 } as const satisfies Record<GatewayExternalGuardrailType, z.ZodType>;
 
 export type GatewayExternalGuardrailConfig = z.output<
@@ -540,6 +595,8 @@ type GuardrailTypeCapability = {
   ];
   readonly defaultAction: GatewayGuardrailAction;
   readonly supportsRedactionLabel: boolean;
+  /** True when the guardrail uses an existing gateway connection instead of its own API key. */
+  readonly usesGatewayConnection: boolean;
 };
 
 /**
@@ -552,22 +609,32 @@ export const GATEWAY_GUARDRAIL_TYPE_CAPABILITIES = {
     actions: ["BLOCK", "REDACT", "LOG"],
     defaultAction: "BLOCK",
     supportsRedactionLabel: true,
+    usesGatewayConnection: false,
   },
   BEDROCK: {
     actions: ["ENFORCE", "LOG"],
     defaultAction: "ENFORCE",
     supportsRedactionLabel: false,
+    usesGatewayConnection: false,
   },
   // Moderation returns verdicts without spans, so it cannot redact.
   OPENAI_MODERATION: {
     actions: ["BLOCK", "LOG"],
     defaultAction: "BLOCK",
     supportsRedactionLabel: false,
+    usesGatewayConnection: false,
   },
   LAKERA: {
     actions: ["BLOCK", "LOG"],
     defaultAction: "BLOCK",
     supportsRedactionLabel: false,
+    usesGatewayConnection: false,
+  },
+  DECISION_MODEL: {
+    actions: ["BLOCK", "LOG"],
+    defaultAction: "BLOCK",
+    supportsRedactionLabel: false,
+    usesGatewayConnection: true,
   },
 } as const satisfies Record<GatewayGuardrailType, GuardrailTypeCapability>;
 

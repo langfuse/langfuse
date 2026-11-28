@@ -505,6 +505,8 @@ enum GatewayGuardrailType {
   OPENAI_MODERATION
   // External Lakera Guard project evaluated via its v2 guard API.
   LAKERA
+  // External decision model evaluated via a gateway connection's `/v1/decisions` endpoint.
+  DECISION_MODEL
 }
 
 enum GatewayGuardrailAction {
@@ -542,6 +544,7 @@ model GatewayGuardrail {
   // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." };
   // For OPENAI_MODERATION: { "region": "us" | "eu" };
   // For LAKERA: { "region": "...", "projectId": "..." } (projectId optional).
+  // For DECISION_MODEL: { "connectionId": "...", "model": "...", "question": "...", "criteria": { "true": "...", "false": "..." }, "threshold": 0.7 } (criteria optional).
   config              Json                         @default("{}") @db.JsonB
   // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.
   encryptedCredential String?                      @map("encrypted_credentials")

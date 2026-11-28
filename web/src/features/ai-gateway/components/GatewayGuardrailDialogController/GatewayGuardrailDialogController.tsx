@@ -26,8 +26,10 @@ import { targetOptionsToAssignments } from "@/src/features/ai-gateway/components
 import { resolveGuardrailTemplate } from "@/src/features/ai-gateway/fns/resolveGuardrailTemplate";
 import { summarizeGuardrailAssignments } from "@/src/features/ai-gateway/fns/summarizeGuardrailAssignments";
 import { toGuardrailConfigAnalytics } from "@/src/features/ai-gateway/fns/toGuardrailConfigAnalytics";
+import { useGatewayDecisionModelConnections } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayDecisionModelConnections";
 import { useGatewayGuardrailRegexPreview } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailRegexPreview";
 import { useGatewayGuardrailTargetPicker } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/hooks/useGatewayGuardrailTargetPicker";
+import { buildGatewayModelsUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayModelsUrl";
 import { GATEWAY_GUARDRAIL_DEFAULT_REDACTION_LABEL } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
 import { useInvalidateGatewayGuardrails } from "@/src/features/ai-gateway/hooks/useInvalidateGatewayGuardrails";
 import {
@@ -139,11 +141,17 @@ export function GatewayGuardrailDialogController({
         const handleTestForm = async (values: GatewayGuardrailFormValues) => {
           if (!values.external) return;
           try {
+            const { type, config, apiKey } = values.external;
             await testMutation.mutateAsync({
               orgId: organizationId,
               id: state.mode === "edit" ? state.guardrail.id : undefined,
-              ...values.external,
-            });
+              type,
+              config,
+              ...(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type]
+                .usesGatewayConnection
+                ? {}
+                : { apiKey }),
+            } as RouterInputs["aiGateway"]["guardrails"]["test"]);
           } catch (error) {
             reportNonTrpcError(error, "ai-gateway-guardrails");
           }
@@ -157,19 +165,20 @@ export function GatewayGuardrailDialogController({
           const assignments = targetOptionsToAssignments(values.targets);
           const createGuardrail = () => {
             if (values.external) {
+              const { type, config, apiKey } = values.external;
               return createMutation.mutateAsync({
                 orgId: organizationId,
-                type: values.external.type,
+                type,
                 name: values.name,
-                action: resolveSupportedGuardrailAction(
-                  values.external.type,
-                  values.action,
-                ),
+                action: resolveSupportedGuardrailAction(type, values.action),
                 scope: values.scope,
-                config: values.external.config,
-                apiKey: values.external.apiKey ?? "",
+                config,
+                ...(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type]
+                  .usesGatewayConnection
+                  ? {}
+                  : { apiKey: apiKey ?? "" }),
                 assignments,
-              });
+              } as RouterInputs["aiGateway"]["guardrails"]["create"]);
             }
             return createMutation.mutateAsync({
               orgId: organizationId,
@@ -185,20 +194,21 @@ export function GatewayGuardrailDialogController({
           };
           const updateGuardrail = (id: string) => {
             if (values.external) {
+              const { type, config, apiKey } = values.external;
               return updateMutation.mutateAsync({
                 orgId: organizationId,
                 id,
-                type: values.external.type,
+                type,
                 name: values.name,
-                action: resolveSupportedGuardrailAction(
-                  values.external.type,
-                  values.action,
-                ),
+                action: resolveSupportedGuardrailAction(type, values.action),
                 scope: values.scope,
-                config: values.external.config,
-                apiKey: values.external.apiKey,
+                config,
+                ...(GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type]
+                  .usesGatewayConnection
+                  ? {}
+                  : { apiKey }),
                 assignments,
-              });
+              } as RouterInputs["aiGateway"]["guardrails"]["update"]);
             }
             return updateMutation.mutateAsync({
               orgId: organizationId,
@@ -506,21 +516,35 @@ function toRegexActionInput(
 function ConnectedGuardrailFormContent({
   organizationId,
   ...props
-}: Omit<GatewayGuardrailFormDialogProps, "customRegexPreview"> & {
+}: Omit<
+  GatewayGuardrailFormDialogProps,
+  "customRegexPreview" | "decisionModelConnections" | "gatewayModelsHref"
+> & {
   organizationId: string;
 }) {
   const isCustomRegex = props.templateKind === "custom_regex";
+  const isDecisionModel = props.templateKind === "decision_model";
   const customRegexPreview = useGatewayGuardrailRegexPreview({
     organizationId,
     enabled: isCustomRegex,
     initialPattern: props.initialValues.customRegex ?? "",
     initialText: props.initialTestText ?? "",
   });
+  const decisionModelConnections = useGatewayDecisionModelConnections(
+    organizationId,
+    { enabled: isDecisionModel },
+  );
 
   return (
     <GatewayGuardrailFormDialog
       {...props}
       customRegexPreview={isCustomRegex ? customRegexPreview : undefined}
+      decisionModelConnections={
+        isDecisionModel ? decisionModelConnections : undefined
+      }
+      gatewayModelsHref={
+        isDecisionModel ? buildGatewayModelsUrl(organizationId) : undefined
+      }
     />
   );
 }

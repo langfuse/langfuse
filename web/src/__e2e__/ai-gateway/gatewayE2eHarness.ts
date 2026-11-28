@@ -20,7 +20,10 @@ import type {
 } from "@/src/features/ai-gateway/server/provider/registry";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import type { ModelDiscoveryError } from "@/src/features/ai-gateway/server/provider/models/types";
-import type { GatewayGuardrailPreset } from "@/src/features/ai-gateway/types/gatewayGuardrail";
+import type {
+  GatewayDecisionModelGuardrailConfig,
+  GatewayGuardrailPreset,
+} from "@/src/features/ai-gateway/types/gatewayGuardrail";
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -146,6 +149,13 @@ type GatewayKeyGuardrail =
       scope?: GatewayKeyGuardrailScope;
       config: Record<string, string>;
       apiKey: string;
+    }
+  | {
+      /** A decision-model guardrail backed by an existing gateway connection. */
+      type: "DECISION_MODEL";
+      action: "BLOCK" | "LOG";
+      scope?: GatewayKeyGuardrailScope;
+      config: GatewayDecisionModelGuardrailConfig;
     };
 
 export const REDACT_REQUEST_EMAIL = "alice@example.com";
@@ -371,7 +381,9 @@ export async function withGatewayApiKey(
             ? {
                 type: guardrail.type,
                 config: guardrail.config,
-                encryptedCredential: encrypt(guardrail.apiKey),
+                ...("apiKey" in guardrail
+                  ? { encryptedCredential: encrypt(guardrail.apiKey) }
+                  : {}),
               }
             : {
                 redactionLabel: guardrail.redactionLabel,

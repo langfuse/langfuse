@@ -32,6 +32,7 @@ use crate::{
     transport,
 };
 pub use outbound::OutboundPolicy;
+pub(crate) use outbound::PolicyResolver;
 
 /// Largest provider response body buffered for output guardrail evaluation.
 const MAX_JSON_RESPONSE_GUARDRAIL_BYTES: usize = MAX_RESPONSE_PARSE_BYTES;
@@ -189,7 +190,7 @@ impl ProviderTransport {
             .build()
             .map_err(|_| ProviderError::Configuration)?;
         let custom_base_url_client = provider_client_builder(limits.execution.max_execution_time)
-            .dns_resolver(outbound::PolicyResolver(Arc::clone(&policy)))
+            .dns_resolver(PolicyResolver(Arc::clone(&policy)))
             .build()
             .map_err(|_| ProviderError::Configuration)?;
         Ok(Self {

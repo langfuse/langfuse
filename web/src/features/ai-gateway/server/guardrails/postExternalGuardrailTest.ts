@@ -18,10 +18,13 @@ export async function postExternalGuardrailTest(params: {
   providerName: string;
   unreachableMessage: string;
   isExpectedResponse: (json: unknown) => boolean;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
 }) {
+  const extraHeaders = params.extraHeaders ?? {};
   const fetcher = getGatewayFetch({
-    baseURL: null,
-    extraHeaders: {},
+    baseURL: params.baseURL ?? null,
+    extraHeaders,
     logContext: `AI Gateway ${params.providerName} guardrail validation`,
   });
 
@@ -32,6 +35,7 @@ export async function postExternalGuardrailTest(params: {
       redirect: "error",
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
       headers: {
+        ...extraHeaders,
         authorization: `Bearer ${params.apiKey}`,
         "content-type": "application/json",
         accept: "application/json",

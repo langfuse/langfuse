@@ -131,9 +131,18 @@ const externalGuardrailWriteFields = (type: GatewayExternalGuardrailType) => ({
   config: GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS[type],
 });
 
+const API_KEY_EXTERNAL_GUARDRAIL_TYPES =
+  GATEWAY_EXTERNAL_GUARDRAIL_TYPES.filter(
+    (type) => !GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type].usesGatewayConnection,
+  );
+const CONNECTION_EXTERNAL_GUARDRAIL_TYPES =
+  GATEWAY_EXTERNAL_GUARDRAIL_TYPES.filter(
+    (type) => GATEWAY_GUARDRAIL_TYPE_CAPABILITIES[type].usesGatewayConnection,
+  );
+
 const createGuardrailInput = z.union([
   organizationInput.and(regexWriteSchema),
-  ...GATEWAY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+  ...API_KEY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
     organizationInput
       .extend({
         ...externalGuardrailWriteFields(type),
@@ -141,11 +150,16 @@ const createGuardrailInput = z.union([
       })
       .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
   ),
+  ...CONNECTION_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+    organizationInput
+      .extend(externalGuardrailWriteFields(type))
+      .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
+  ),
 ]);
 
 const updateGuardrailInput = z.union([
   guardrailIdInput.and(regexWriteSchema),
-  ...GATEWAY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+  ...API_KEY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
     guardrailIdInput
       .extend({
         ...externalGuardrailWriteFields(type),
@@ -153,10 +167,15 @@ const updateGuardrailInput = z.union([
       })
       .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
   ),
+  ...CONNECTION_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+    guardrailIdInput
+      .extend(externalGuardrailWriteFields(type))
+      .refine(isScopeSupportedByAction, SCOPE_NOT_SUPPORTED_MESSAGE),
+  ),
 ]);
 
-const testGuardrailInput = z.union(
-  GATEWAY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+const testGuardrailInput = z.union([
+  ...API_KEY_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
     organizationInput.extend({
       id: z.string().optional(),
       type: z.literal(type),
@@ -164,7 +183,14 @@ const testGuardrailInput = z.union(
       apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
     }),
   ),
-);
+  ...CONNECTION_EXTERNAL_GUARDRAIL_TYPES.map((type) =>
+    organizationInput.extend({
+      id: z.string().optional(),
+      type: z.literal(type),
+      config: GATEWAY_EXTERNAL_GUARDRAIL_CONFIG_SCHEMAS[type],
+    }),
+  ),
+]);
 
 const bulkTargetInput = z.discriminatedUnion("type", [
   z.object({
@@ -347,7 +373,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           action: input.action,
           scope: input.scope,
           config: input.config,
-          apiKey: input.apiKey,
+          apiKey: "apiKey" in input ? input.apiKey : undefined,
           assignments: input.assignments,
           session: ctx.session,
         });
@@ -386,7 +412,7 @@ export const gatewayGuardrailRouter = createTRPCRouter({
           action: input.action,
           scope: input.scope,
           config: input.config,
-          apiKey: input.apiKey,
+          apiKey: "apiKey" in input ? input.apiKey : undefined,
           assignments: input.assignments,
           session: ctx.session,
         });

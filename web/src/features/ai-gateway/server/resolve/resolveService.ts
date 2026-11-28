@@ -327,6 +327,28 @@ function decryptResolvedGuardrail(
     return wire;
   }
   try {
+    if (guardrail.type === "decision_model") {
+      const {
+        scope: _,
+        encrypted_credential,
+        encrypted_extra_headers,
+        ...fields
+      } = guardrail;
+      const extraHeaders = decryptAndParseExtraHeaders(
+        encrypted_extra_headers ?? null,
+      );
+      return {
+        ...fields,
+        patterns: [] as [],
+        api_key: decodeCachedExternalCredential(
+          guardrail.type,
+          decrypt(encrypted_credential),
+        ),
+        ...(extraHeaders && Object.keys(extraHeaders).length > 0
+          ? { extra_headers: extraHeaders }
+          : {}),
+      };
+    }
     const { scope: _, encrypted_credential, ...fields } = guardrail;
     return {
       ...fields,

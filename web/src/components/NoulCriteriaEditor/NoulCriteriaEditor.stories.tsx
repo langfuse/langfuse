@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { fn } from "storybook/test";
 
-import preview from "../../../../../../../../.storybook/preview";
+import preview from "../../../.storybook/preview";
 import { NoulCriteriaEditor } from "./NoulCriteriaEditor";
 
 const meta = preview.meta({ component: NoulCriteriaEditor });
