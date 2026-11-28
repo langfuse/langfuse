@@ -9,17 +9,25 @@ import {
   SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 
-import {
-  eventsObservationsView,
-  eventsTracesView,
-  getViewDeclaration,
-} from "../dataModel";
+import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
-import { buildScores, SCORE_VIEWS_V2 } from "./scoresQuery";
-import { buildEventsObservations } from "./eventsObservationsQuery";
-import { buildEventsTraces } from "./eventsTracesQuery";
+import { scoresAstView } from "./scoresQuery";
+import { eventsObservationsAstView } from "./eventsObservationsQuery";
+import { eventsTracesAstView } from "./eventsTracesQuery";
 import { buildSqlText } from "./sqlTextQuery";
+import { astViewsByDeclaration, type BuildContext } from "./astViewQuery";
+
+/**
+ * The builder of each declaration that compiles through the query AST;
+ * `QueryBuilder.build` assembles every other one as SQL text.
+ * @internal
+ */
+export const AST_VIEWS = astViewsByDeclaration([
+  eventsObservationsAstView,
+  eventsTracesAstView,
+  scoresAstView,
+]);
 
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
@@ -39,6 +47,21 @@ export class QueryBuilder {
     this.rootEventConditionMaxWindowHours = hours;
   }
 
+  /** The {@link BuildContext} of a `build` call for `projectId`. */
+  private astContext(
+    projectId: string,
+    enableSingleLevelOptimization: boolean,
+  ): BuildContext {
+    return {
+      projectId,
+      version: this.version,
+      chartConfig: this.chartConfig,
+      enableSingleLevelOptimization,
+      skipScoresFinal: shouldSkipScoresDedup(projectId),
+      rootEventConditionMaxWindowHours: this.rootEventConditionMaxWindowHours,
+    };
+  }
+
   private getViewDeclaration(
     viewName: z.infer<typeof views> | typeof SCORES_LISTABLE_COUNT_VIEW,
   ): ViewDeclarationType {
@@ -46,11 +69,9 @@ export class QueryBuilder {
   }
 
   /**
-   * The ClickHouse SQL and parameters of `query` for `projectId`. The v2
-   * observations view ({@link buildEventsObservations}), the v2 traces view
-   * ({@link buildEventsTraces}) and the v2 score views ({@link buildScores})
-   * compile through the query AST; every other view and version is
-   * assembled as SQL text ({@link buildSqlText}).
+   * The ClickHouse SQL and parameters of `query` for `projectId`. The
+   * declarations in {@link AST_VIEWS} compile through the query AST; every
+   * other view and version is assembled as SQL text ({@link buildSqlText}).
    *
    * Errors: `InvalidRequestError` for a query the schema or the view rejects.
    */
@@ -66,35 +87,12 @@ export class QueryBuilder {
       );
     }
     const view = this.getViewDeclaration(query.view);
-    if (view === eventsObservationsView) {
-      return buildEventsObservations(
-        query,
-        projectId,
-        enableSingleLevelOptimization,
-        shouldSkipScoresDedup(projectId),
-        this.version,
-        this.chartConfig,
-      );
-    }
-    if (view === eventsTracesView) {
-      return buildEventsTraces(
-        query,
-        projectId,
-        enableSingleLevelOptimization,
-        shouldSkipScoresDedup(projectId),
-        this.version,
-        this.chartConfig,
-        this.rootEventConditionMaxWindowHours,
-      );
-    }
-    if (SCORE_VIEWS_V2.has(view)) {
-      return buildScores(
+    const astView = AST_VIEWS.get(view);
+    if (astView) {
+      return astView(
         query,
         view,
-        projectId,
-        shouldSkipScoresDedup(projectId),
-        this.version,
-        this.chartConfig,
+        this.astContext(projectId, enableSingleLevelOptimization),
       );
     }
     return buildSqlText(

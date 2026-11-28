@@ -29,7 +29,6 @@ import {
   type ExpressionBuilder,
 } from "kysely";
 
-import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { QueryCompileError } from "../../../server/query-ast/errors";
 import {
   formatDateTime,
@@ -56,6 +55,7 @@ import {
   type QueryLevel,
   type Read as EntryRead,
 } from "./registryEntry";
+import type { FilterColumn } from "./viewQuerySteps";
 
 /** A row of the `events_traces` subquery (`eventsTraceAttributes`). */
 type TraceAttributesRow = {
@@ -252,25 +252,17 @@ const METADATA_FILTER: FieldLowering<ScoresBuilder> = {
 };
 
 /**
- * What a dashboard filter on `column` compares: the
- * {@link ScoreDimension.filter} of `dimension`, the view dimension the
- * caller resolved `column` to, else the time dimension `timestamp` or the
- * keyed `metadata`. Throws `InvalidRequestError` for any other column,
- * listing `dimensions` (the view's declared dimensions). A `null` filter on
- * the array dimension `tags` tests emptiness, since ClickHouse arrays are
- * never NULL.
+ * What a dashboard filter on `column` compares: the time dimension
+ * `timestamp`, the keyed `metadata`, or a dimension's
+ * {@link ScoreDimension.filter}. A `null` filter on the array dimension
+ * `tags` tests emptiness, since ClickHouse arrays are never NULL.
  */
 export function scoreFilterLowering(
-  column: string,
-  dimension: string | undefined,
-  dimensions: Readonly<Record<string, unknown>>,
+  column: FilterColumn,
 ): FieldLowering<ScoresBuilder> {
-  if (dimension !== undefined) return scoreDimension(dimension).filter;
-  if (column === "timestamp") return TIMESTAMP_FILTER;
-  if (column === "metadata") return METADATA_FILTER;
-  throw new InvalidRequestError(
-    `Invalid filter column ${column}. Must be one of ${Object.keys(dimensions)} or timestamp`,
-  );
+  if (column.kind === "time") return TIMESTAMP_FILTER;
+  if (column.kind === "metadata") return METADATA_FILTER;
+  return scoreDimension(column.name).filter;
 }
 
 /** The `data_type` column a view's segment compares. */

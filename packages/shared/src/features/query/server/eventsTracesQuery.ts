@@ -1,12 +1,16 @@
 /**
- * The v2 traces view's query on the query AST ({@link buildEventsTraces}):
+ * The v2 traces view's query on the query AST ({@link eventsTracesAstView}):
  * its FROM, `scores` join and WHERE, the root-event condition, and its
  * dimension and measure selections, read from the entries of
- * `eventsTracesRegistry.ts`. The steps it shares with the other views are in
- * `viewQuerySteps.ts`; `QueryBuilder` dispatches the view here.
+ * `eventsTracesRegistry.ts`. The steps it shares with the other views run in
+ * `defineAstView` (`astViewQuery.ts`).
  */
-import { expressionBuilder, type Expression, type SqlBool } from "kysely";
-import { type QueryType, type ViewVersion } from "../types";
+import {
+  expressionBuilder,
+  type AliasableExpression,
+  type Expression,
+  type SqlBool,
+} from "kysely";
 import { eventsTracesView } from "../dataModel";
 import { conditionFromFilter } from "../../../query-ast/filterStateCodec";
 import type { PredicateCondition } from "../../../query-ast/predicate";
@@ -32,32 +36,16 @@ import {
   type TracesBuilder,
   type TracesDb,
 } from "./eventsTracesRegistry";
-import { type QueryLevel } from "./registryEntry";
+import { defineAstView, levelIfAllowed } from "./astViewQuery";
 import {
   type AppliedDimensionType,
   type AppliedMetricType,
-  type BucketValues,
   type TimeBucketOf,
   type TimeWindow,
+  type FilterColumn,
   HOUR_MS,
-  utcDateTime,
-  assertKnownRelationTables,
   atLevel,
-  applyBucketingDimension,
-  mapDimensions,
-  mapMetrics,
-  withRequiredDimensions,
-  validateFilters,
-  collectRelationTables,
-  canUseSingleLevelQuery,
-  validateAndProcessOrderBy,
-  astOuterClauses,
-  astOuterSelect,
-  compileWithOuterClauses,
   dimensionAlias,
-  astBucketSelection,
-  astSingleLevelMetrics,
-  astInnerMetrics,
 } from "./viewQuerySteps";
 
 /**
@@ -68,8 +56,8 @@ import {
 type TracesFilter = { pruning: boolean; conjuncts: Expression<SqlBool>[] };
 
 /**
- * `QueryBuilder.build` for the v2 traces view: a dashboard widget or metrics
- * API query over traces, where each trace is aggregated from its events (one
+ * The v2 traces view on the query AST: a dashboard widget or metrics API
+ * query over traces, where each trace is aggregated from its events (one
  * row per trace in the inner select, then the widget's aggregation).
  *
  * Level: single-level only with `enableSingleLevelOptimization`, no measure
@@ -83,134 +71,62 @@ type TracesFilter = { pruning: boolean; conjuncts: Expression<SqlBool>[] };
  *
  * `skipScoresFinal`: the project never updates its scores
  * (`shouldSkipScoresDedup`), so the `scoresCount` join reads `scores` without
- * `FINAL` and drops deleted scores in its ON clause instead. `version` and
- * `chartConfig` (histogram bins, row limit) are the `QueryBuilder`'s.
+ * `FINAL` and drops deleted scores in its ON clause instead.
  */
-export function buildEventsTraces(
-  query: QueryType,
-  projectId: string,
-  enableSingleLevelOptimization: boolean,
-  skipScoresFinal: boolean,
-  version: ViewVersion,
-  chartConfig: { bins?: number; row_limit?: number } | undefined,
-  rootEventConditionMaxWindowHours: number,
-): { query: string; parameters: Record<string, unknown> } {
-  const view = eventsTracesView;
-  const requestedDimensions = mapDimensions(query.dimensions, view);
-  const appliedMetrics = mapMetrics(query.metrics, view);
-  const bucket = applyBucketingDimension(query, view, version);
-  const appliedDimensions = withRequiredDimensions(
-    requestedDimensions,
-    appliedMetrics,
-    view,
-  );
-  validateFilters(query.filters, view);
-  const filters = query.filters.map((filter) =>
-    lowerTracesFilter(filter.column, conditionFromFilter(filter)),
-  );
-
+export const eventsTracesAstView = defineAstView<
+  TracesDb,
+  "e",
+  TracesFilter,
+  undefined
+>({
+  serves: [eventsTracesView],
   // No filter joins a relation: every filter lowering compares `e` columns.
-  const relationTables = collectRelationTables(
-    appliedDimensions,
-    appliedMetrics,
-    bucket,
-  );
-  assertKnownRelationTables(view, relationTables);
-  const level: QueryLevel =
-    enableSingleLevelOptimization &&
-    canUseSingleLevelQuery(appliedDimensions, appliedMetrics)
-      ? "single"
-      : "two";
-  const orderBy = validateAndProcessOrderBy(
-    query.orderBy,
-    appliedDimensions,
-    appliedMetrics,
-    bucket,
-  );
-  const window: TimeWindow = {
-    from: utcDateTime(new Date(query.fromTimestamp)),
-    to: utcDateTime(new Date(query.toTimestamp)),
-  };
-  const windowHours =
-    (new Date(query.toTimestamp).getTime() -
-      new Date(query.fromTimestamp).getTime()) /
-    HOUR_MS;
-  const source = astTracesSource({
-    window,
-    filters,
-    joinsScores: relationTables.has("scores"),
-    skipScoresFinal,
-    // The condition scans the window a second time; on a long window the
-    // traces it drops, whose root event starts before the window, are few.
-    restrictToRootEvents:
-      rootEventConditionMaxWindowHours === 0 ||
-      windowHours <= rootEventConditionMaxWindowHours,
-  });
-  const outerClauses = astOuterClauses(
-    query,
-    appliedDimensions,
-    bucket,
-    orderBy,
-    chartConfig?.row_limit,
-  );
-  const bucketValue = (eb: TracesBuilder): BucketValues => ({
+  lowerFilter: (column, filter) =>
+    lowerTracesFilter(column, conditionFromFilter(filter)),
+  plan: (input) => ({ level: levelIfAllowed(input), plan: undefined }),
+  source: ({ query, window, filters, relations, ctx }) => {
+    const windowHours =
+      (new Date(query.toTimestamp).getTime() -
+        new Date(query.fromTimestamp).getTime()) /
+      HOUR_MS;
+    return astTracesSource({
+      window,
+      filters,
+      joinsScores: relations.has("scores"),
+      skipScoresFinal: ctx.skipScoresFinal,
+      // The condition scans the window a second time; on a long window the
+      // traces it drops, whose root event starts before the window, are few.
+      restrictToRootEvents:
+        ctx.rootEventConditionMaxWindowHours === 0 ||
+        windowHours <= ctx.rootEventConditionMaxWindowHours,
+    });
+  },
+  dimension: (eb, dimension, level) =>
+    level === "single"
+      ? eventsTracesDimension(dimension.name)
+          .expression(eb)
+          .as(dimensionAlias(dimension))
+      : perTraceDimension(eb, dimension),
+  measure: (eb, metric, level) =>
+    level === "single"
+      ? singleLevelMeasure(metric)
+      : perTraceMeasure(eb, metric),
+  bucket: (eb) => ({
     time: eb.ref("e.start_time"),
     entity: (field) => eventsTracesDimension(field).expression(eb),
     perEntityTime: (bucketOf) => rootEventTimeBucket(eb, bucketOf),
-  });
-
-  if (level === "single") {
-    return compileWithOuterClauses(
-      projectId,
-      outerClauses,
-      source.select((eb) => [
-        ...appliedDimensions.map((d) =>
-          eventsTracesDimension(d.name).expression(eb).as(dimensionAlias(d)),
-        ),
-        ...astBucketSelection(bucket, "single", bucketValue(eb)),
-        ...astSingleLevelMetrics(
-          eb,
-          appliedMetrics,
-          singleLevelMeasure,
-          chartConfig?.bins,
-        ),
-      ]),
-    );
-  }
-  const perTrace = source
-    .select(["e.project_id", "e.trace_id"])
-    .select((eb) => [
-      ...appliedDimensions.map((d) => perTraceDimension(eb, d)),
-      ...astBucketSelection(bucket, "two", bucketValue(eb)),
-      ...astInnerMetrics(eb, appliedMetrics, (metric) =>
-        eventsTracesMeasure(metric.measureName, metric.aggregation).expression(
-          eb,
-        ),
-      ),
-    ])
-    .groupBy(["e.project_id", "e.trace_id"]);
-  return compileWithOuterClauses(
-    projectId,
-    outerClauses,
-    astOuterSelect(
-      perTrace.as("per_trace"),
-      appliedDimensions,
-      bucket,
-      appliedMetrics,
-      chartConfig?.bins,
-    ),
-  );
-}
+  }),
+  perRow: { keys: ["e.project_id", "e.trace_id"], alias: "per_trace" },
+});
 
 /**
  * A dashboard filter on `column` as WHERE conjuncts over `e`. The trace name
  * is an expression no skip index covers, so a `name` filter first applies
  * the same condition to its `prunedBy` columns, ORed, for their indexes to
- * skip granules; its own condition then decides which events match. Throws
- * `InvalidRequestError` for a column the view has no filter for.
+ * skip granules; its own condition then decides which events match.
  */
 function lowerTracesFilter(
-  column: string,
+  column: FilterColumn,
   condition: PredicateCondition,
 ): TracesFilter {
   const eb = expressionBuilder<TracesDb, "e">();
@@ -331,6 +247,22 @@ function perTraceDimension(eb: TracesBuilder, dimension: AppliedDimensionType) {
     ? entry.perTrace(eb)
     : atLevel(entry.expression(eb), "two");
   return value.as(dimensionAlias(dimension));
+}
+
+/**
+ * A measure in the inner select of a two-level query, already one value per
+ * trace. The `scores` measure reads a builder typed with the `scores`
+ * join, which the query adds for it.
+ */
+function perTraceMeasure(
+  eb: TracesBuilder,
+  metric: AppliedMetricType,
+): AliasableExpression<unknown> {
+  const entry = eventsTracesMeasure(metric.measureName, metric.aggregation);
+  if ("relationTable" in entry) {
+    return entry.expression(expressionBuilder<TracesDb, "e" | "scores">());
+  }
+  return entry.expression(eb);
 }
 
 /**
