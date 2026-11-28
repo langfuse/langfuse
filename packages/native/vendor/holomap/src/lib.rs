@@ -50,7 +50,7 @@ mod smooth_knn;
 mod sparse;
 mod spectral;
 
-pub use api::{Holomap, HolomapBuilder, HolomapError};
+pub use api::{Holomap, HolomapBuilder, HolomapError, NeighborGraph};
 pub use metric::Metric;
 pub use spectral::Init;
 

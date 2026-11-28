@@ -6,7 +6,7 @@
 //! (500 up to 10k points, 200 above), spectral init.
 
 use crate::curve::find_ab_params;
-use crate::fuzzy::fuzzy_simplicial_set;
+use crate::fuzzy::{FuzzyGraph, fuzzy_simplicial_set};
 use crate::knn::exact_knn;
 use crate::metric::Metric;
 use crate::rng::SeededRng;
@@ -81,6 +81,13 @@ pub struct Holomap {
     init: Init,
 }
 
+/// Neighbour graph of one dataset, from [`Holomap::neighbor_graph`].
+pub struct NeighborGraph {
+    graph: FuzzyGraph,
+    n_neighbors: usize,
+    metric: Metric,
+}
+
 /// Builder — every field has a reference-default except the seed, which is
 /// the required entry argument.
 #[derive(Clone, Debug)]
@@ -110,7 +117,80 @@ impl Holomap {
     /// `n_components` dimensions. Same input + same params + same seed →
     /// bit-identical output.
     pub fn fit_transform(&self, data: &[f32], n_features: usize) -> Result<Vec<f32>, HolomapError> {
-        // --- validation -----------------------------------------------------
+        let graph = self.neighbor_graph(data, n_features)?;
+        Ok(self.embed(data, n_features, &graph))
+    }
+
+    /// Validates `data` and builds its neighbour graph. The graph depends only
+    /// on the data, `n_neighbors` and `metric`, so reducers that share those
+    /// can reuse one graph through [`Holomap::fit_transform_with_graph`].
+    pub fn neighbor_graph(
+        &self,
+        data: &[f32],
+        n_features: usize,
+    ) -> Result<NeighborGraph, HolomapError> {
+        self.validate(data, n_features)?;
+        let knn = exact_knn(data, n_features, self.n_neighbors, self.metric);
+        let calib = smooth_knn(&knn.dists, self.n_neighbors);
+        Ok(NeighborGraph {
+            graph: fuzzy_simplicial_set(&knn, &calib),
+            n_neighbors: self.n_neighbors,
+            metric: self.metric,
+        })
+    }
+
+    /// [`Holomap::fit_transform`] on a graph from [`Holomap::neighbor_graph`].
+    /// The graph must come from the same `data`, `n_neighbors` and `metric`;
+    /// the output is then bit-identical to `fit_transform`.
+    pub fn fit_transform_with_graph(
+        &self,
+        data: &[f32],
+        n_features: usize,
+        graph: &NeighborGraph,
+    ) -> Result<Vec<f32>, HolomapError> {
+        self.validate(data, n_features)?;
+        if graph.graph.n != data.len() / n_features
+            || graph.n_neighbors != self.n_neighbors
+            || graph.metric != self.metric
+        {
+            return Err(HolomapError::InvalidParameter(
+                "graph was built for different data, n_neighbors or metric",
+            ));
+        }
+        Ok(self.embed(data, n_features, graph))
+    }
+
+    // RNG draw order is fixed: init noise, then SGD.
+    fn embed(&self, data: &[f32], n_features: usize, graph: &NeighborGraph) -> Vec<f32> {
+        let graph = &graph.graph;
+        let n = graph.n;
+        let n_epochs = self.n_epochs.unwrap_or_else(|| default_n_epochs(n));
+        let mut rng = SeededRng::new(self.seed);
+        let mut embedding = initial_embedding(
+            data,
+            n_features,
+            graph,
+            self.n_components,
+            self.init,
+            &mut rng,
+        );
+
+        let (a, b) = find_ab_params(f64::from(self.spread), f64::from(self.min_dist));
+        let schedule = schedule_edges(graph, n_epochs);
+        optimize_embedding(
+            &mut embedding,
+            self.n_components,
+            n,
+            &schedule,
+            n_epochs,
+            a,
+            b,
+            &mut rng,
+        );
+        embedding
+    }
+
+    fn validate(&self, data: &[f32], n_features: usize) -> Result<(), HolomapError> {
         if n_features == 0 || data.is_empty() || !data.len().is_multiple_of(n_features) {
             return Err(HolomapError::BadShape {
                 len: data.len(),
@@ -142,36 +222,7 @@ impl Holomap {
         if let Some(index) = data.iter().position(|x| !x.is_finite()) {
             return Err(HolomapError::NonFiniteInput { index });
         }
-
-        // --- the pipeline; RNG draw order is fixed: init noise, then SGD ----
-        let knn = exact_knn(data, n_features, self.n_neighbors, self.metric);
-        let calib = smooth_knn(&knn.dists, self.n_neighbors);
-        let graph = fuzzy_simplicial_set(&knn, &calib);
-
-        let n_epochs = self.n_epochs.unwrap_or_else(|| default_n_epochs(n));
-        let mut rng = SeededRng::new(self.seed);
-        let mut embedding = initial_embedding(
-            data,
-            n_features,
-            &graph,
-            self.n_components,
-            self.init,
-            &mut rng,
-        );
-
-        let (a, b) = find_ab_params(f64::from(self.spread), f64::from(self.min_dist));
-        let schedule = schedule_edges(&graph, n_epochs);
-        optimize_embedding(
-            &mut embedding,
-            self.n_components,
-            n,
-            &schedule,
-            n_epochs,
-            a,
-            b,
-            &mut rng,
-        );
-        Ok(embedding)
+        Ok(())
     }
 
     /// [`ndarray`] front door: embed an `n × n_features` view into an
