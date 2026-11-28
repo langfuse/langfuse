@@ -1,4 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client.js";
+import { TRACE_START_SLACK_MS } from "./clickhouse.js";
+import { topicFilterConditions } from "./trace-filter.js";
 
 const postgres = vi.hoisted(() => ({
   listTopicFacets: vi.fn(),
@@ -31,10 +34,6 @@ it("follows the table window up to 93 days and rejects longer or open windows", 
       },
     ],
   });
-  const { topicFilterConditions } = await import("./trace-filter.js");
-  const { TRACE_START_SLACK_MS } = await import("./clickhouse.js");
-  const { convertDateToClickhouseDateTime } =
-    await import("../clickhouse/client.js");
   const to = new Date("2026-06-01T00:00:00.000Z");
   const bound = (operator: ">=" | "<", value: Date) => ({
     type: "datetime" as const,
@@ -79,7 +78,6 @@ it("follows the table window up to 93 days and rejects longer or open windows", 
 });
 
 it("matches nothing without querying when the table's date filters cannot overlap", async () => {
-  const { topicFilterConditions } = await import("./trace-filter.js");
   const bounds = [
     {
       type: "datetime" as const,
@@ -124,7 +122,6 @@ it("matches stable topic IDs directly (including after rename or with duplicate 
       },
     ],
   });
-  const { topicFilterConditions } = await import("./trace-filter.js");
   const window = [
     {
       type: "datetime" as const,

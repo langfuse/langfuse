@@ -60,7 +60,8 @@ export function useTopicStripe({
   );
   if (!enabled || !facet || !map || !topicsByTrace) return null;
   const segments = topicStripeSegments({ rows, topicsByTrace, facet, map });
-  if (!segments.some((segment) => segment.kind === "topic")) return null;
+  const stripeTopics = segments.filter((segment) => segment.kind === "topic");
+  if (stripeTopics.length === 0) return null;
   const query = new URLSearchParams({
     ...(map.ruleId ? topicMapQuery({ kind: "rule", id: map.ruleId }) : {}),
     topicFacet: map.facetId,
@@ -68,9 +69,9 @@ export function useTopicStripe({
   return {
     facet,
     segments,
-    selected: selectedStripeTopics(filters, facet),
+    selected: selectedStripeTopics(filters, facet, stripeTopics),
     onToggle: (topic: string) =>
-      onFiltersChange(toggleStripeTopic(filters, facet, topic)),
+      onFiltersChange(toggleStripeTopic(filters, facet, topic, stripeTopics)),
     details: {
       ...topicStripeCoverage({ rows, topicsByTrace, facet, map }),
       mapName: map.mapName,

@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
+import {
+  createFieldRegistry,
+  EVENTS_FIELD_REGISTRY,
+  withKeyedFieldOptions,
+} from "@/src/features/search-bar/lib/fields";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 import * as recentSearches from "@/src/features/search-bar/lib/recent-searches";
@@ -429,5 +434,91 @@ describe("useEventsSearchBar.applyFilters", () => {
     });
     act(() => result.current.applyFilters(NEW_FILTERS));
     expect(setSearchType).not.toHaveBeenCalled();
+  });
+});
+
+describe("useEventsSearchBar label-only registry updates", () => {
+  const baseTopicsRegistry = createFieldRegistry({
+    ...EVENTS_FIELD_REGISTRY,
+    keyedOptionNamespaces: { topics: "topics" },
+  });
+  const hydratedTopicsRegistry = withKeyedFieldOptions(
+    baseTopicsRegistry,
+    "topics",
+    {
+      Intent: [{ value: "topic-1", displayValue: "Billing questions" }],
+    },
+  );
+  const topicFilter: FilterState = [
+    {
+      type: "categoryOptions",
+      column: "topics",
+      key: "Intent",
+      operator: "any of",
+      value: ["topic-1"],
+    },
+  ];
+
+  it("upgrades an untouched draft when topic names load, without clobbering an unfinished edit", () => {
+    const { result, rerender } = renderHook(
+      ({
+        registry,
+        filterState,
+      }: {
+        registry: typeof baseTopicsRegistry;
+        filterState: FilterState;
+      }) =>
+        useEventsSearchBar({
+          projectId: "p",
+          tableName: "observations",
+          enabled: true,
+          filterState,
+          searchQuery: null,
+          searchType: DEFAULT_SEARCH_TYPE,
+          observed: undefined,
+          setFilterState: vi.fn(),
+          setSearchQuery: vi.fn(),
+          setSearchType: vi.fn(),
+          registry,
+        }),
+      {
+        initialProps: {
+          registry: baseTopicsRegistry,
+          filterState: topicFilter,
+        },
+      },
+    );
+
+    expect(result.current.store.getState().draft).toBe(
+      "topics.Intent:topic-1 ",
+    );
+
+    // Label-only registry update while draft is untouched upgrades the displayed label.
+    rerender({ registry: hydratedTopicsRegistry, filterState: topicFilter });
+    expect(result.current.store.getState().draft).toBe(
+      'topics.Intent:"Billing questions" ',
+    );
+
+    // User begins typing an unfinished query; a subsequent label-only rename must not erase it.
+    act(() => {
+      result.current.store
+        .getState()
+        .actions.setDraft('topics.Intent:"Billing questions" level:ERROR');
+    });
+    const renamedTopicsRegistry = withKeyedFieldOptions(
+      baseTopicsRegistry,
+      "topics",
+      {
+        Intent: [{ value: "topic-1", displayValue: "Invoices & billing" }],
+      },
+    );
+    rerender({ registry: renamedTopicsRegistry, filterState: topicFilter });
+    expect(result.current.store.getState().draft).toBe(
+      'topics.Intent:"Billing questions" level:ERROR',
+    );
+
+    // A genuine external filter change still resets the draft.
+    rerender({ registry: renamedTopicsRegistry, filterState: NEW_FILTERS });
+    expect(result.current.store.getState().draft).toBe("name:checkout ");
   });
 });

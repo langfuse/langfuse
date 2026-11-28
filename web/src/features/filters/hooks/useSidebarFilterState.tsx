@@ -469,6 +469,51 @@ const extractKeyedValuesAndDisplay = (
   };
 };
 
+/**
+ * Resolves legacy display-name filter values to their canonical option values
+ * when a keyed facet carries explicit `{ value, displayValue }` mappings, so
+ * pre-existing URLs and saved views highlight the canonical option once instead
+ * of duplicating it beside the raw display name.
+ */
+const resolveLegacyKeyValueEntries = (
+  activeFilters: KeyValueFilterEntry[],
+  availableValues: Record<string, string[]>,
+  displayByKeyValue?: Record<string, Record<string, string>>,
+): KeyValueFilterEntry[] => {
+  if (!displayByKeyValue) return activeFilters;
+  return activeFilters.map((filter) => {
+    const keyDisplay = displayByKeyValue[filter.key];
+    if (!keyDisplay) return filter;
+    const knownValues = new Set(availableValues[filter.key] ?? []);
+    const valuesByDisplay = new Map<string, string[]>();
+    for (const [value, display] of Object.entries(keyDisplay)) {
+      const existing = valuesByDisplay.get(display);
+      if (existing) existing.push(value);
+      else valuesByDisplay.set(display, [value]);
+    }
+    const resolved: string[] = [];
+    const seen = new Set<string>();
+    const add = (value: string) => {
+      if (seen.has(value)) return;
+      seen.add(value);
+      resolved.push(value);
+    };
+    for (const entry of filter.value) {
+      if (knownValues.has(entry)) {
+        add(entry);
+        continue;
+      }
+      const canonical = valuesByDisplay.get(entry);
+      if (canonical) {
+        for (const value of canonical) add(value);
+      } else {
+        add(entry);
+      }
+    }
+    return { ...filter, value: resolved };
+  });
+};
+
 const mergeAvailableValuesWithActiveFilters = (
   availableValues: Record<string, string[]>,
   activeFilters: KeyValueFilterEntry[],
@@ -1571,9 +1616,14 @@ export function useSidebarFilterPresentation(
                   availableValues as Record<string, KeyedFacetOptionValue[]>,
                 )
               : { values: {} as Record<string, string[]> };
+          const resolvedActiveFilters = resolveLegacyKeyValueEntries(
+            activeFilters,
+            extracted.values,
+            extracted.displayByKeyValue,
+          );
           const mergedAvailableValues = mergeAvailableValuesWithActiveFilters(
             extracted.values,
-            activeFilters,
+            resolvedActiveFilters,
           );
 
           // Extract key options from availableValues if not defined in facet
@@ -1581,7 +1631,7 @@ export function useSidebarFilterPresentation(
             facet.keyOptions ??
             mergeUniqueStrings(
               Object.keys(mergedAvailableValues),
-              activeFilters.map((filter) => filter.key),
+              resolvedActiveFilters.map((filter) => filter.key),
             );
 
           return {
@@ -1591,7 +1641,7 @@ export function useSidebarFilterPresentation(
             tooltip: facet.tooltip,
             help: facet.help,
 
-            value: activeFilters,
+            value: resolvedActiveFilters,
             keyOptions,
             keyLevels: resolveKeyScoreLevels(facet.column, options),
             availableValues: mergedAvailableValues,

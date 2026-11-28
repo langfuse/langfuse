@@ -131,10 +131,51 @@ export function topicStripeSegments({
 const isFacetAnyOfFilter = (facet: string) => (filter: FilterState[number]) =>
   isTopicFilter(filter) && filter.key === facet && filter.operator === "any of";
 
-/** Topics picked in the facet's "any of" filter. */
-export function selectedStripeTopics(filters: FilterState, facet: string) {
+type StripeTopicIdentity = { topicId: string; name: string };
+
+/**
+ * Resolves each entry in the facet's "any of" filter to stable topic IDs when
+ * it matches a known topic's ID or legacy name, leaving unknown entries intact.
+ */
+function resolveStripeFilterValues(
+  values: readonly string[],
+  topics: readonly StripeTopicIdentity[],
+): Set<string> {
+  if (topics.length === 0) return new Set(values);
+  const knownIds = new Set(topics.map((topic) => topic.topicId));
+  const idsByName = new Map<string, string[]>();
+  for (const topic of topics) {
+    const existing = idsByName.get(topic.name);
+    if (existing) existing.push(topic.topicId);
+    else idsByName.set(topic.name, [topic.topicId]);
+  }
+  const resolved = new Set<string>();
+  for (const value of values) {
+    if (knownIds.has(value)) {
+      resolved.add(value);
+      continue;
+    }
+    const matchingIds = idsByName.get(value);
+    if (matchingIds) {
+      for (const id of matchingIds) resolved.add(id);
+    } else {
+      resolved.add(value);
+    }
+  }
+  return resolved;
+}
+
+/** Topics picked in the facet's "any of" filter (resolving legacy names when stripe topics are known). */
+export function selectedStripeTopics(
+  filters: FilterState,
+  facet: string,
+  topics: readonly StripeTopicIdentity[] = [],
+) {
   const filter = filters.find(isFacetAnyOfFilter(facet));
-  return new Set(filter?.type === "categoryOptions" ? filter.value : []);
+  return resolveStripeFilterValues(
+    filter?.type === "categoryOptions" ? filter.value : [],
+    topics,
+  );
 }
 
 /** Adds the topic to the facet's first "any of" filter, or removes it; other filters stay as they are. */
@@ -142,8 +183,9 @@ export function toggleStripeTopic(
   filters: FilterState,
   facet: string,
   topic: string,
+  topics: readonly StripeTopicIdentity[] = [],
 ): FilterState {
-  const selected = selectedStripeTopics(filters, facet);
+  const selected = selectedStripeTopics(filters, facet, topics);
   if (selected.has(topic)) selected.delete(topic);
   else selected.add(topic);
   const index = filters.findIndex(isFacetAnyOfFilter(facet));

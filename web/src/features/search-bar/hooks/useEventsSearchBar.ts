@@ -41,6 +41,7 @@ import {
 import { recordRecentSearch } from "@/src/features/search-bar/lib/recent-searches";
 import {
   createSearchBarStore,
+  draftsSemanticallyEqual,
   type SearchBarStore,
 } from "@/src/features/search-bar/store/searchBarStore";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -236,12 +237,64 @@ export function useEventsSearchBar({
   const skippedFiltersRef = useRef(derived.skippedFilters);
   skippedFiltersRef.current = derived.skippedFilters;
 
+  const lastBaselineRef = useRef<{
+    appliedState: AppliedSearchState;
+    committedText: string;
+    registry: FieldRegistry;
+  } | null>(null);
+
   // The one external→local sync: seed the draft whenever the committed
   // baseline changes (a commit echo, a sidebar edit, a saved view, or
   // navigation). resetTo is a no-op when the draft already matches, so a
   // commit's own echo settles immediately without clobbering the caret.
+  // When only the registry's display labels changed (e.g. topic names loaded
+  // after mount) and the user already started editing an unfinished draft,
+  // keep their draft intact instead of overwriting it.
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      lastBaselineRef.current = null;
+      return;
+    }
+    const prev = lastBaselineRef.current;
+    const currentApplied = appliedStateRef.current;
+    const currentRegistry = registryRef.current;
+    const labelOnlyChange =
+      prev !== null &&
+      prev.registry !== currentRegistry &&
+      restingDraft(
+        filterStateToQueryText(
+          prev.appliedState.filters,
+          {
+            searchQuery: prev.appliedState.query,
+            searchType: prev.appliedState.scopes,
+          },
+          currentRegistry,
+        ).text,
+      ) === committedText;
+
+    lastBaselineRef.current = {
+      appliedState: currentApplied,
+      committedText,
+      registry: currentRegistry,
+    };
+
+    if (labelOnlyChange) {
+      const draft = store.getState().draft;
+      const scoreTypes = scoreTypeContextFromObserved(observedRef.current);
+      const draftUntouched =
+        draft === prev.committedText ||
+        draftsSemanticallyEqual(
+          prev.committedText,
+          draft,
+          scoreTypes,
+          prev.registry,
+        );
+      if (draftUntouched) {
+        store.getState().actions.resetTo(committedText);
+      }
+      return;
+    }
+
     const cachedDraft = draftCache?.current;
     store.getState().actions.resetTo(committedText);
     // Only restore a draft that belongs to the same applied search state.

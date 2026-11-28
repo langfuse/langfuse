@@ -4,6 +4,7 @@ import type { FilterState } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 import {
   TOPIC_STRIPE_SLOTS,
+  selectedStripeTopics,
   toggleStripeTopic,
   topicStripeCoverage,
   topicStripeSegments,
@@ -266,6 +267,53 @@ describe("toggleStripeTopic", () => {
     expect(toggleStripeTopic(filters, "Intent", "Billing")).toEqual([
       ...other,
       second,
+    ]);
+  });
+
+  it("resolves legacy topic names when computing selection and toggling off", () => {
+    const stripeTopics = [
+      { topicId: "t-billing", name: "Billing" },
+      { topicId: "t-support-1", name: "Support" },
+      { topicId: "t-support-2", name: "Support" },
+    ];
+    const legacyBilling: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing"],
+      },
+    ];
+    expect(selectedStripeTopics(legacyBilling, "Intent", stripeTopics)).toEqual(
+      new Set(["t-billing"]),
+    );
+    expect(
+      toggleStripeTopic(legacyBilling, "Intent", "t-billing", stripeTopics),
+    ).toEqual([]);
+
+    const legacyDuplicate: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Support", "Unloaded"],
+      },
+    ];
+    expect(
+      selectedStripeTopics(legacyDuplicate, "Intent", stripeTopics),
+    ).toEqual(new Set(["t-support-1", "t-support-2", "Unloaded"]));
+    expect(
+      toggleStripeTopic(legacyDuplicate, "Intent", "t-support-1", stripeTopics),
+    ).toEqual([
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["t-support-2", "Unloaded"],
+      },
     ]);
   });
 });
