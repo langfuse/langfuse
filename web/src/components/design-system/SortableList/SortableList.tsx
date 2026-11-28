@@ -9,7 +9,10 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  restrictToParentElement,
+  restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -20,6 +23,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
+
+const LIST_MODIFIERS = [restrictToVerticalAxis];
+// A table clips its rows, so a dragged row stays inside it.
+const TABLE_MODIFIERS = [restrictToVerticalAxis, restrictToParentElement];
 
 function SortableRow({
   id,
@@ -33,7 +40,7 @@ function SortableRow({
   label: string;
   disabled: boolean;
   compact: boolean;
-  variant: "plain" | "hover-card";
+  variant: "plain" | "hover-card" | "table";
   children: ReactNode;
 }) {
   const {
@@ -59,7 +66,9 @@ function SortableRow({
         "group/sortable",
         variant === "hover-card"
           ? "hover:border-border focus-within:border-border relative rounded-md border border-transparent p-2"
-          : "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-1",
+          : "grid grid-cols-[auto_minmax(0,1fr)] gap-1",
+        variant === "plain" && "items-start",
+        variant === "table" && "bg-card items-center px-1.5",
         isDragging && "relative z-10 opacity-70",
       )}
     >
@@ -107,7 +116,8 @@ export function SortableList<T>({
   renderItem: (item: T, index: number) => ReactNode;
   /** Row spacing: `sm` for compact input rows, `md` for cards. */
   gap?: "sm" | "md";
-  variant?: "plain" | "hover-card";
+  /** `table`: rows share one bordered box with dividers, no gap. */
+  variant?: "plain" | "hover-card" | "table";
   disabled?: boolean;
   "aria-label"?: string;
 }) {
@@ -144,7 +154,7 @@ export function SortableList<T>({
   return (
     <DndContext
       collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
+      modifiers={variant === "table" ? TABLE_MODIFIERS : LIST_MODIFIERS}
       sensors={sensors}
       onDragStart={() => setIsDragging(true)}
       onDragCancel={() => setIsDragging(false)}
@@ -153,7 +163,11 @@ export function SortableList<T>({
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ol
           aria-label={ariaLabel}
-          className={cn("flex flex-col", gap === "md" ? "gap-4" : "gap-1.5")}
+          className={cn(
+            "flex flex-col",
+            variant === "table" && "divide-y overflow-hidden rounded-md border",
+            variant !== "table" && (gap === "md" ? "gap-4" : "gap-1.5"),
+          )}
         >
           {items.map((item, index) => (
             <SortableRow
