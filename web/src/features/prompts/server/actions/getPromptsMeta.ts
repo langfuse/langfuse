@@ -5,7 +5,8 @@ import {
   promptsTableCols,
   type PromptType,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { z } from "zod";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   addTagsToCurrentSpan,
   PromptService,
@@ -14,6 +15,8 @@ import {
 } from "@langfuse/shared/src/server";
 
 export type GetPromptsMetaParams = GetPromptsMetaType & { projectId: string };
+
+type PromptsListFilterParams = Omit<GetPromptsMetaType, "page">;
 
 export const getPromptsMeta = async (
   params: GetPromptsMetaParams,
@@ -26,52 +29,11 @@ export const getPromptsMeta = async (
     "langfuse.prompt_list.offset": limit * (page - 1),
   });
 
-  const promptsMeta = (await prisma.$queryRaw`
-    WITH page_names AS MATERIALIZED (
-      SELECT p.name
-      FROM prompts p
-      WHERE p."project_id" = ${projectId}
-        ${getPromptsFilterCondition(params)}
-      GROUP BY p.name
-      ORDER BY p.name
-      LIMIT ${limit}
-      OFFSET ${limit * (page - 1)}
-    )
-    SELECT
-      n.name,
-      metadata.tags,
-      metadata."lastUpdatedAt",
-      metadata.versions,
-      metadata.labels,
-      latest.type AS type,
-      latest.config AS "lastConfig"
-    FROM page_names n
-    CROSS JOIN LATERAL (
-      SELECT
-        MAX(p.tags) AS tags,
-        MAX(p.updated_at) AS "lastUpdatedAt",
-        array_agg(DISTINCT p.version) AS versions,
-        COALESCE(
-          array_agg(DISTINCT label) FILTER (WHERE label IS NOT NULL),
-          '{}'::text[]
-        ) AS labels
-      FROM prompts p
-      LEFT JOIN LATERAL unnest(p.labels) AS label ON true
-      WHERE p."project_id" = ${projectId}
-        AND p.name = n.name
-        ${getPromptsFilterCondition(params)}
-    ) metadata
-    LEFT JOIN LATERAL (
-      SELECT p.config, p.type
-      FROM prompts p
-      WHERE p."project_id" = ${projectId}
-        AND p.name = n.name
-        ${getPromptsFilterCondition(params)}
-      ORDER BY p.version DESC
-      LIMIT 1
-    ) latest ON true
-    ORDER BY n.name
-  `) as PromptsMeta[];
+  const promptsMeta = await queryPromptsMetaPage({
+    params,
+    limit,
+    offset: limit * (page - 1),
+  });
 
   // Page crawls repeat the same full-project count on every page.
   const filterCondition = getPromptsFilterCondition(params);
@@ -112,6 +74,129 @@ export const getPromptsMeta = async (
   };
 };
 
+export type GetPromptsMetaCursorParams = PromptsListFilterParams & {
+  projectId: string;
+  cursor?: PromptsCursorV3;
+};
+
+export const getPromptsMetaWithCursor = async (
+  params: GetPromptsMetaCursorParams,
+): Promise<PromptsMetaCursorResponse> => {
+  const { limit, cursor } = params;
+
+  addTagsToCurrentSpan({
+    "langfuse.prompt_list.limit": limit,
+    "langfuse.prompt_list.has_cursor": cursor !== undefined,
+  });
+
+  // Fetch one extra row to know whether a next page exists.
+  const rows = await queryPromptsMetaPage({
+    params,
+    limit: limit + 1,
+    afterName: cursor?.lastName,
+  });
+  const data = rows.slice(0, limit);
+  const nextCursor =
+    rows.length > limit
+      ? encodePromptsCursorV3({ lastName: data[data.length - 1].name })
+      : undefined;
+
+  addTagsToCurrentSpan({
+    "langfuse.prompt_list.result_count": data.length,
+  });
+
+  return {
+    data,
+    meta: { limit, ...(nextCursor ? { cursor: nextCursor } : {}) },
+  };
+};
+
+// Postgres rejects NUL in text parameters, so such a cursor can never match a stored name.
+const PromptsCursorV3 = z.object({
+  lastName: z.string().refine((s) => !s.includes("\u0000"), {
+    message: "Invalid cursor format",
+  }),
+});
+type PromptsCursorV3 = z.infer<typeof PromptsCursorV3>;
+
+export const EncodedPromptsCursorV3 = z
+  .string()
+  .transform((val, ctx) => {
+    try {
+      return JSON.parse(Buffer.from(val, "base64url").toString("utf-8"));
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Invalid cursor format" });
+      return z.NEVER;
+    }
+  })
+  .pipe(PromptsCursorV3);
+
+const encodePromptsCursorV3 = (cursor: PromptsCursorV3): string =>
+  Buffer.from(JSON.stringify(cursor)).toString("base64url");
+
+const queryPromptsMetaPage = async ({
+  params,
+  limit,
+  offset,
+  afterName,
+}: {
+  params: PromptsListFilterParams & { projectId: string };
+  limit: number;
+  /** Offset paging, used by v2 only. */
+  offset?: number;
+  /** Keyset paging: return names sorting after this one. */
+  afterName?: string;
+}): Promise<PromptsMeta[]> => {
+  const { projectId } = params;
+  return (await prisma.$queryRaw`
+    WITH page_names AS MATERIALIZED (
+      SELECT p.name
+      FROM prompts p
+      WHERE p."project_id" = ${projectId}
+        ${getPromptsFilterCondition(params)}
+        ${afterName !== undefined ? Prisma.sql`AND p.name > ${afterName}` : Prisma.empty}
+      GROUP BY p.name
+      ORDER BY p.name
+      LIMIT ${limit}
+      ${offset !== undefined ? Prisma.sql`OFFSET ${offset}` : Prisma.empty}
+    )
+    SELECT
+      n.name,
+      metadata.tags,
+      metadata."lastUpdatedAt",
+      metadata.versions,
+      metadata.labels,
+      latest.type AS type,
+      latest.config AS "lastConfig"
+    FROM page_names n
+    CROSS JOIN LATERAL (
+      SELECT
+        MAX(p.tags) AS tags,
+        MAX(p.updated_at) AS "lastUpdatedAt",
+        array_agg(DISTINCT p.version) AS versions,
+        COALESCE(
+          array_agg(DISTINCT label) FILTER (WHERE label IS NOT NULL),
+          '{}'::text[]
+        ) AS labels
+      FROM prompts p
+      LEFT JOIN LATERAL unnest(p.labels) AS label ON true
+      WHERE p."project_id" = ${projectId}
+        AND p.name = n.name
+        ${getPromptsFilterCondition(params)}
+    ) metadata
+    LEFT JOIN LATERAL (
+      SELECT p.config, p.type
+      FROM prompts p
+      WHERE p."project_id" = ${projectId}
+        AND p.name = n.name
+        ${getPromptsFilterCondition(params)}
+      ORDER BY p.version DESC
+      LIMIT 1
+    ) latest ON true
+    ORDER BY n.name
+  `) as PromptsMeta[];
+};
+
 type PromptsMeta = {
   name: string;
   versions: number[];
@@ -140,7 +225,15 @@ export type PromptsMetaResponse = {
   };
 };
 
-const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
+export type PromptsMetaCursorResponse = {
+  data: PromptsMeta[];
+  meta: {
+    limit: number;
+    cursor?: string;
+  };
+};
+
+const getPromptsFilterCondition = (params: PromptsListFilterParams) => {
   if (params.filter !== undefined) {
     return tableColumnsToSqlFilterAndPrefix(
       params.filter,
