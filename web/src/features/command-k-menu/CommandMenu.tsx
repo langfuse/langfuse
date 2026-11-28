@@ -1426,7 +1426,7 @@ function useEntityGroups(
     {
       projectId,
       limit: ENTITY_LIMIT,
-      search: debouncedSearch.trim() || undefined,
+      search: getEvaluatorSearchQuery(debouncedSearch),
     },
     {
       enabled: open && evaluatorsUrl !== null,
@@ -1456,6 +1456,20 @@ function useEntityGroups(
           evaluators.isFetching ||
           evaluators.isPending)),
   };
+}
+
+/** Drops terms already matched by evaluator keywords before querying name ILIKE on the server. */
+export function getEvaluatorSearchQuery(search: string): string | undefined {
+  const keywords = ENTITY_GROUPS.evaluator.keywords;
+  const remainingTerms = search
+    .trim()
+    .split(/\s+/)
+    .filter(
+      (term) =>
+        term.length > 0 &&
+        !keywords.some((keyword) => keyword.includes(term.toLowerCase())),
+    );
+  return remainingTerms.length > 0 ? remainingTerms.join(" ") : undefined;
 }
 
 /** Most recent first, one entry per URL, capped at RECENTS_LIMIT. */

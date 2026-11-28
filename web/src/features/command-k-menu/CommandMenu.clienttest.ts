@@ -3,6 +3,7 @@ import {
   buildCreateActions,
   buildPageShortcuts,
   getEntityBaseUrl,
+  getEvaluatorSearchQuery,
   getIdNavigationItem,
   getRecentPickAnalytics,
   getSearchAnalytics,
@@ -286,5 +287,21 @@ describe("toEntityGroup", () => {
       toEntityGroup("evaluator", null, [{ id: "e1", name: "Toxicity" }], "")
         .items,
     ).toEqual([]);
+  });
+});
+
+describe("getEvaluatorSearchQuery", () => {
+  it("omits server search when query only matches evaluator keywords", () => {
+    expect(getEvaluatorSearchQuery("")).toBeUndefined();
+    expect(getEvaluatorSearchQuery("eval")).toBeUndefined();
+    expect(getEvaluatorSearchQuery("evaluator")).toBeUndefined();
+  });
+
+  it("strips evaluator keyword prefixes and keeps the name filter for server ILIKE", () => {
+    expect(getEvaluatorSearchQuery("eval answer_relevance")).toBe(
+      "answer_relevance",
+    );
+    expect(getEvaluatorSearchQuery("evaluator toxicity")).toBe("toxicity");
+    expect(getEvaluatorSearchQuery("hallucination")).toBe("hallucination");
   });
 });
