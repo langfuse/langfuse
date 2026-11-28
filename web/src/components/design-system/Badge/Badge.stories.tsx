@@ -187,6 +187,20 @@ export const InContext = meta.story({
   },
 });
 
+/** A badge that opens something on hover or click reads as clickable. */
+export const Interactive = meta.story({
+  name: "(Test) Interactive",
+  args: {
+    text: "Troubleshoot webhook failures +2",
+    color: "violet",
+    interactive: true,
+  },
+  play: async ({ canvas, args }) => {
+    const badge = canvas.getByText(args.text).parentElement!;
+    await expect(getComputedStyle(badge).cursor).toBe("pointer");
+  },
+});
+
 export const LongWrappedLabel = meta.story({
   name: "(Test) Long Wrapped Label",
   args: {
