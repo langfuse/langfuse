@@ -48,13 +48,14 @@ export function isTopicFilter<T extends { type: string; column: string }>(
 
 /**
  * Builds labeled topic filter options keyed by stable topic ID. Unique names
- * display as-is; duplicate names within the same facet append `(<id>)` so
- * filter display labels stay 1:1 with topic IDs.
+ * display as-is; duplicate names append `(<qualifier>)` when provided (e.g. a
+ * rule name across multi-rule maps) and fall back to `(<id>)` only when a
+ * collision still remains, so filter display labels stay 1:1 with topic IDs.
  */
 export function buildTopicFilterOptions(
-  topics: readonly { id: string; name: string }[],
+  topics: readonly { id: string; name: string; qualifier?: string }[],
 ): { value: string; displayValue: string }[] {
-  const unique: { id: string; name: string }[] = [];
+  const unique: { id: string; name: string; qualifier?: string }[] = [];
   const seenIds = new Set<string>();
   for (const topic of topics) {
     if (seenIds.has(topic.id)) continue;
@@ -65,18 +66,31 @@ export function buildTopicFilterOptions(
   for (const topic of unique) {
     nameCounts.set(topic.name, (nameCounts.get(topic.name) ?? 0) + 1);
   }
-  const taken = new Set(
-    unique
-      .filter((topic) => (nameCounts.get(topic.name) ?? 0) === 1)
-      .map((topic) => topic.name),
-  );
-  return unique.map((topic) => {
-    const duplicate = (nameCounts.get(topic.name) ?? 0) > 1;
-    let displayValue = duplicate ? `${topic.name} (${topic.id})` : topic.name;
-    if (duplicate) {
-      while (taken.has(displayValue)) displayValue += ` (${topic.id})`;
-      taken.add(displayValue);
+  const candidates = unique.map((topic) => {
+    if ((nameCounts.get(topic.name) ?? 0) === 1) return topic.name;
+    return topic.qualifier ? `${topic.name} (${topic.qualifier})` : null;
+  });
+  const candidateCounts = new Map<string, number>();
+  for (const candidate of candidates) {
+    if (candidate !== null) {
+      candidateCounts.set(candidate, (candidateCounts.get(candidate) ?? 0) + 1);
     }
+  }
+  const taken = new Set(
+    candidates.filter(
+      (candidate): candidate is string =>
+        candidate !== null && candidateCounts.get(candidate) === 1,
+    ),
+  );
+  return unique.map((topic, index) => {
+    const candidate = candidates[index];
+    if (candidate !== null && candidateCounts.get(candidate) === 1) {
+      return { value: topic.id, displayValue: candidate };
+    }
+    const base = candidate ?? topic.name;
+    let displayValue = `${base} (${topic.id})`;
+    while (taken.has(displayValue)) displayValue += ` (${topic.id})`;
+    taken.add(displayValue);
     return { value: topic.id, displayValue };
   });
 }

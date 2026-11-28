@@ -13,22 +13,30 @@ import {
 
 /** Sidebar and search bar options: facet name → `{ value: stableTopicId, displayValue: name }` of its current published maps. */
 export async function topicFilterOptions(projectId: string) {
-  const facets = sortTopicFacets(await listTopicFacets(projectId));
+  const [facets, rules] = await Promise.all([
+    listTopicFacets(projectId).then(sortTopicFacets),
+    listTopicRules(projectId),
+  ]);
   const { maps } = await getPublishedTopicMaps(
     projectId,
     facets.map((facet) => facet.id),
   );
+  const ruleNameById = new Map(rules.map((rule) => [rule.id, rule.name]));
   return Object.fromEntries(
     facets.flatMap((facet) => {
       const options = buildTopicFilterOptions(
         maps
           .filter((map) => map.facetId === facet.id)
-          .flatMap((map) =>
-            map.topics.map((topic) => ({
+          .flatMap((map) => {
+            const qualifier = map.ruleId
+              ? ruleNameById.get(map.ruleId)
+              : undefined;
+            return map.topics.map((topic) => ({
               id: topic.topicId,
               name: topic.name,
-            })),
-          ),
+              ...(qualifier ? { qualifier } : {}),
+            }));
+          }),
       );
       return options.length > 0 ? [[facet.name, options]] : [];
     }),

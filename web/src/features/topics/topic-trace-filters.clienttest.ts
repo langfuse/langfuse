@@ -162,6 +162,40 @@ describe("topic trace filtering", () => {
     ).toEqual({
       topicIds: { operator: "any of", values: ["one", "two"] },
     });
+    // Preserved v2 localStorage snapshots holding disambiguated labels still resolve to their single topic.
+    const legacyDisambiguated = [
+      topicFilter("any of", ["Support (one) (one)"]),
+    ];
+    expect(pickedTopicId(legacyDisambiguated, duplicateFacet)).toBe("one");
+    expect(topicTraceQuery(legacyDisambiguated, null, duplicateFacet)).toEqual({
+      topicIds: { operator: "any of", values: ["one"] },
+    });
+  });
+
+  it("qualifies cross-rule duplicate topic names by rule name before falling back to IDs", () => {
+    expect(
+      buildTopicFilterOptions([
+        { id: "t-a", name: "Billing", qualifier: "Support" },
+        { id: "t-b", name: "Billing", qualifier: "Sales" },
+        { id: "t-c", name: "Refunds", qualifier: "Support" },
+      ]),
+    ).toEqual([
+      { value: "t-a", displayValue: "Billing (Support)" },
+      { value: "t-b", displayValue: "Billing (Sales)" },
+      { value: "t-c", displayValue: "Refunds" },
+    ]);
+
+    expect(
+      buildTopicFilterOptions([
+        { id: "t-a1", name: "Billing", qualifier: "Support" },
+        { id: "t-a2", name: "Billing", qualifier: "Support" },
+        { id: "t-b", name: "Billing", qualifier: "Sales" },
+      ]),
+    ).toEqual([
+      { value: "t-a1", displayValue: "Billing (Support) (t-a1)" },
+      { value: "t-a2", displayValue: "Billing (Support) (t-a2)" },
+      { value: "t-b", displayValue: "Billing (Sales)" },
+    ]);
   });
 
   it("survives topic renames without rewriting FilterState", () => {

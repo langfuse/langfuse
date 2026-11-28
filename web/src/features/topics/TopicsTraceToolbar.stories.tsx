@@ -319,7 +319,7 @@ export const UnsupportedRestoredFilter = meta.story({
 export const FacetFiltersPersist = meta.story({
   name: "(Test) Facets Remember Their Filters",
   beforeEach: () => {
-    const storageKey = "topics-trace-filters-v3";
+    const storageKey = "topics-trace-filters-v2";
     const snapshots = JSON.parse(
       localStorage.getItem(storageKey) ?? "{}",
     ) as Record<string, unknown>;

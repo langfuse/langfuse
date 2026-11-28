@@ -364,6 +364,7 @@ export function getTopicAssignment(outcome: string) {
 
 type TopicFilterLookup = {
   idSet: Set<string>;
+  idByDisplayValue: Map<string, string>;
   idsByName: Map<string, string[]>;
 };
 
@@ -378,7 +379,13 @@ function topicFilterLookup(
     ids.push(topic.id);
     idsByName.set(topic.name, ids);
   }
-  return { idSet, idsByName };
+  const idByDisplayValue = new Map(
+    buildTopicFilterOptions(topics).map((option) => [
+      option.displayValue,
+      option.value,
+    ]),
+  );
+  return { idSet, idByDisplayValue, idsByName };
 }
 
 function resolveTopicFilterValue(
@@ -386,6 +393,8 @@ function resolveTopicFilterValue(
   lookup: TopicFilterLookup,
 ): string[] {
   if (lookup.idSet.has(value)) return [value];
+  const byDisplay = lookup.idByDisplayValue.get(value);
+  if (byDisplay !== undefined) return [byDisplay];
   return lookup.idsByName.get(value) ?? [];
 }
 
