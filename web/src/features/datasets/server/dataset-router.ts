@@ -1188,6 +1188,7 @@ export const datasetRouter = createTRPCRouter({
         sourceTraceId: input.sourceTraceId,
         sourceObservationId: input.sourceObservationId,
         status: input.status,
+        normalizeOpts: { parseJsonStrings: true },
         validateOpts: { normalizeUndefinedToNull: false }, // For UPDATE, undefined means "don't update"
       });
 
@@ -1698,7 +1699,7 @@ export const datasetRouter = createTRPCRouter({
         metadata: input.metadata,
         sourceTraceId: input.sourceTraceId,
         sourceObservationId: input.sourceObservationId,
-        normalizeOpts: { sanitizeControlChars: true },
+        normalizeOpts: { sanitizeControlChars: true, parseJsonStrings: true },
         validateOpts: {
           normalizeUndefinedToNull: true, // For CREATE, undefined becomes null in DB
         },
@@ -1766,7 +1767,7 @@ export const datasetRouter = createTRPCRouter({
         const result = await createManyDatasetItems({
           projectId: input.projectId,
           items: input.items,
-          normalizeOpts: { sanitizeControlChars: true },
+          normalizeOpts: { sanitizeControlChars: true, parseJsonStrings: true },
           validateOpts: { normalizeUndefinedToNull: true },
         });
 
