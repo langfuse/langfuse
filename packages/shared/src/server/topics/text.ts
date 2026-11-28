@@ -12,6 +12,7 @@ import {
 import { z } from "zod";
 import { decrypt } from "../../encryption";
 import { BedrockConfigSchema } from "../../interfaces/customLLMProviderConfigSchemas";
+import { fetchWithoutBaggage } from "../instrumentation";
 import {
   assertValidBedrockRegion,
   canUseBedrockDefaultCredentials,
@@ -594,7 +595,7 @@ async function invokeWithCache(
     },
   });
   // A single attempt; the host is derived from the validated region.
-  const response = await fetch(url, {
+  const response = await fetchWithoutBaggage(url, {
     method: "POST",
     headers: await bedrockRequestHeaders(params.model, url, region, body),
     body,

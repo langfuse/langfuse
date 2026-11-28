@@ -27,6 +27,7 @@ import {
   DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   decodeFiltersGeneric,
 } from "@langfuse/shared";
+import { fetchWithoutBaggage } from "@langfuse/shared/src/server";
 import type { LangfuseClient } from "@langfuse/client";
 import type { InAppAgentTracingConfig } from "./instrumentation";
 
@@ -658,6 +659,7 @@ describe("createAgUiStream", () => {
       region: "eu-central-1",
       apiKey: "",
       credentialProvider: expect.any(Function),
+      fetch: fetchWithoutBaggage,
     });
   });
 
@@ -673,6 +675,7 @@ describe("createAgUiStream", () => {
     expect(createAmazonBedrock).toHaveBeenCalledWith({
       apiKey: "",
       credentialProvider: expect.any(Function),
+      fetch: fetchWithoutBaggage,
     });
   });
 
@@ -689,6 +692,7 @@ describe("createAgUiStream", () => {
     expect(createAnthropic).toHaveBeenCalledWith({
       apiKey: "sk-ant-test",
       baseURL: "https://api.anthropic.com/v1",
+      fetch: fetchWithoutBaggage,
     });
 
     const { Agent } = await import("@mastra/core/agent");
