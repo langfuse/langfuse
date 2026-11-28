@@ -640,8 +640,14 @@ export const env = createEnv({
     LANGFUSE_INIT_PROJECT_ID: z.string().optional(),
     LANGFUSE_INIT_PROJECT_NAME: z.string().optional(),
     LANGFUSE_INIT_PROJECT_RETENTION: z.coerce.number().int().gte(3).optional(),
-    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z.string().optional(),
-    LANGFUSE_INIT_PROJECT_SECRET_KEY: z.string().optional(),
+    LANGFUSE_INIT_PROJECT_PUBLIC_KEY: z
+      .string()
+      .startsWith("pk-lf-", "Public keys must start with 'pk-lf-'.")
+      .optional(),
+    LANGFUSE_INIT_PROJECT_SECRET_KEY: z
+      .string()
+      .startsWith("sk-lf-", "Secret keys must start with 'sk-lf-'.")
+      .optional(),
     LANGFUSE_INIT_USER_EMAIL: z
       .union([z.email(), z.string().length(0)])
       .optional(),

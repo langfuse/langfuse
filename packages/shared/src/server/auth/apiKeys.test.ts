@@ -8,6 +8,7 @@ import {
   createApiKey,
   createShaHash,
   formatSubmittedPublicKeyForLog,
+  redactApiKey,
   redactLangfuseSecretKeys,
   verifySecretKey,
 } from "./apiKeys";
@@ -22,11 +23,16 @@ import {
 const SECRET_KEY = "sk-lf-0f2a4c6e-8b1d-4e3f-9a7c-5d6e7f8a9b0c";
 const PUBLIC_KEY = "pk-lf-1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 
-describe("redactLangfuseSecretKeys", () => {
-  it("masks a bare secret key to its display form", () => {
-    expect(redactLangfuseSecretKeys(SECRET_KEY)).toBe("sk-lf-...9b0c");
+describe("redactApiKey", () => {
+  it("keeps only a Langfuse prefix and the last four characters", () => {
+    expect(redactApiKey(SECRET_KEY)).toBe("sk-lf-...9b0c");
+    expect(redactApiKey("sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")).toBe(
+      "...6789",
+    );
   });
+});
 
+describe("redactLangfuseSecretKeys", () => {
   it("masks every secret key embedded in a larger string", () => {
     const input = JSON.stringify([
       SECRET_KEY,
@@ -57,7 +63,7 @@ describe("formatSubmittedPublicKeyForLog", () => {
 
   it("masks non-Langfuse secrets without revealing their middle", () => {
     const openAiStyle = "sk-proj-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    expect(formatSubmittedPublicKeyForLog(openAiStyle)).toBe('"sk-pro...6789"');
+    expect(formatSubmittedPublicKeyForLog(openAiStyle)).toBe('"...6789"');
   });
 
   it("does not echo short values whose head and tail would overlap", () => {
@@ -242,6 +248,36 @@ describe("createApiKey assignment rows", () => {
     });
 
     expect(getApiKeyData().userId).toBeUndefined();
+  });
+
+  it("rejects a predefined public key without the pk-lf- prefix before writing", async () => {
+    const { tx } = makeTx();
+
+    await expect(
+      createApiKey(asTx(tx), {
+        tenant: OrganizationId(ORG_ID),
+        scope: ProjectId("proj_1"),
+        role: SystemRoleId("VIEWER"),
+        createdBy: UserId("user_1"),
+        predefinedKeys: { publicKey: "pk-1234567890", secretKey: SECRET_KEY },
+      }),
+    ).rejects.toThrow("Public keys must start with 'pk-lf-'");
+    expect(tx.apiKey.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a predefined secret key without the sk-lf- prefix before writing", async () => {
+    const { tx } = makeTx();
+
+    await expect(
+      createApiKey(asTx(tx), {
+        tenant: OrganizationId(ORG_ID),
+        scope: ProjectId("proj_1"),
+        role: SystemRoleId("VIEWER"),
+        createdBy: UserId("user_1"),
+        predefinedKeys: { publicKey: PUBLIC_KEY, secretKey: "sk-1234567890" },
+      }),
+    ).rejects.toThrow("Secret keys must start with 'sk-lf-'");
+    expect(tx.apiKey.create).not.toHaveBeenCalled();
   });
 
   it("stores the secret only as a fast hash, with a placeholder no bcrypt check accepts", async () => {

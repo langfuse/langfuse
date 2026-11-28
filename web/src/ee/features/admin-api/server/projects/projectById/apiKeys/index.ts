@@ -74,25 +74,11 @@ export async function handleCreateApiKey(
 
   const { name, expiresAt, role, publicKey, secretKey } = validationResult.data;
 
-  if (publicKey || secretKey) {
-    if (!publicKey || !secretKey) {
-      return res.status(400).json({
-        message:
-          "Both publicKey and secretKey must be provided together when specifying predefined keys",
-      });
-    }
-
-    if (!publicKey.startsWith("pk-lf-")) {
-      return res.status(400).json({
-        message: "publicKey must start with 'pk-lf-'",
-      });
-    }
-
-    if (!secretKey.startsWith("sk-lf-")) {
-      return res.status(400).json({
-        message: "secretKey must start with 'sk-lf-'",
-      });
-    }
+  if (Boolean(publicKey) !== Boolean(secretKey)) {
+    return res.status(400).json({
+      message:
+        "Both publicKey and secretKey must be provided together when specifying predefined keys",
+    });
   }
 
   if (!createdByApiKeyId) {

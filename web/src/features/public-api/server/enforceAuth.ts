@@ -5,9 +5,12 @@ import { type Span } from "@opentelemetry/api";
 import {
   type ForbiddenError,
   type InternalServerError,
+  type InvalidRequestError,
   type LangfuseNotFoundError,
   type ServiceUnavailableError,
   type UnauthorizedError,
+  publicKeyPrefix,
+  secretKeyPrefix,
 } from "@langfuse/shared";
 import {
   addUserToSpan,
@@ -26,10 +29,12 @@ import {
 
 import { authorize } from "@/src/features/rbac/authorize";
 import { authenticator } from "@/src/features/apiKey/authenticator";
+import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
   forbiddenError,
   internalServerError,
+  invalidRequestError,
   notFoundError,
   type AuthorizationContext,
   type Decision,
@@ -40,9 +45,6 @@ import {
 
 /** __dangerouslySkipAuthz skips the connection-level action check for routes that authorize each call themselves. */
 export const __dangerouslySkipAuthz = "__dangerouslySkipAuthz" as const;
-
-/** orgIdHeader selects the target org. */
-const orgIdHeader = "langfuse-organization-id";
 
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "langfuse-project-id";
@@ -126,7 +128,7 @@ function enforceOrgAuthz(
   action: ApiAction,
   span: Span,
 ): EnforceAuthResult {
-  const org = getOrgId(context, req);
+  const org = getOrgId(context);
   if (!org.success) return org;
   addUserToSpan({ orgId: org.orgId }, span);
 
@@ -182,37 +184,68 @@ function authorizeAction(
   return authorize(context, tenant, action, resource);
 }
 
-/** getOrgId resolves the target org the key's bound org and the header agree on. */
+/** getOrgId resolves the target org from the key's bound org. */
 function getOrgId(
   context: AuthorizationContext,
-  req: NextApiRequest,
 ): ResolvedOrg | ErrorResult<ForbiddenError> {
-  const requested = [getHeaderOrgId(req), getBoundOrgId(context)];
-  const orgId = first(requested);
-  if (!equal(requested) || !orgId) {
-    return forbiddenError();
-  }
+  const orgId = getBoundOrgId(context);
+  if (!orgId) return forbiddenError();
 
   return { success: true, orgId };
 }
 
-/** getProjectId prioritizes the bound project, then the query parameter, then the header, refusing a bound key whose path names another project. */
+/** getProjectId resolves the target project from the bound key, path, headers or query string. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
-): ResolvedProject | ErrorResult<ForbiddenError> {
+): ResolvedProject | ErrorResult<ForbiddenError | InvalidRequestError> {
+  const headerProjectIds = [
+    getHeaderProjectId(req),
+    getBasicAuthProjectId(req),
+  ];
+  if (!equal(headerProjectIds)) {
+    return invalidProjectError();
+  }
+
   const boundProjectId = getBoundProjectId(context);
-  if (!equal([boundProjectId, getPathProjectId(req)])) {
-    return forbiddenError();
+  const inputProjectIds = [getPathProjectId(req), ...headerProjectIds];
+  const unauthorizedProjectId = inputProjectIds.find(
+    (id) => !equal([boundProjectId, id]),
+  );
+  if (unauthorizedProjectId) {
+    return unauthorizedProjectError(unauthorizedProjectId);
   }
 
   const projectId =
-    boundProjectId ?? getUrlProjectId(req) ?? getHeaderProjectId(req);
+    boundProjectId ?? first(inputProjectIds) ?? getUrlProjectId(req);
   if (!projectId) {
-    return forbiddenError();
+    return missingProjectError();
   }
 
   return { success: true, projectId };
+}
+
+/** missingProjectError returns a 403 for a multi-project key that names no project. */
+function missingProjectError(): ErrorResult<ForbiddenError> {
+  return forbiddenError(
+    `Multi-project API keys require the '${projectIdHeader}' header to select a project`,
+  );
+}
+
+/** invalidProjectError returns a 400 for a header and authorization header that disagree. */
+function invalidProjectError(): ErrorResult<InvalidRequestError> {
+  return invalidRequestError(
+    `Project ids from the '${projectIdHeader}' header and authorization header disagree`,
+  );
+}
+
+/** unauthorizedProjectError returns a 403 for a key naming a project it is not bound to. */
+function unauthorizedProjectError(
+  projectId: string,
+): ErrorResult<ForbiddenError> {
+  return forbiddenError(
+    `The API Key is not authorized to access project '${projectId}'`,
+  );
 }
 
 /** lookupProjectOrgId reads a project's org from the database, 404ing when the project is absent. */
@@ -246,15 +279,22 @@ function getBoundProjectId(context: AuthorizationContext): string | undefined {
   return context.principal.boundResource.projectId;
 }
 
-/** getHeaderOrgId returns the target org from the header. */
-function getHeaderOrgId(req: NextApiRequest): string | undefined {
-  return getHeaderValue(req, orgIdHeader);
-}
-
 /** getHeaderProjectId returns the target project from the header. */
 function getHeaderProjectId(req: NextApiRequest): string | undefined {
   return getHeaderValue(req, projectIdHeader);
 }
+
+/** getBasicAuthProjectId returns the Basic auth username as the target project unless it is a key. */
+function getBasicAuthProjectId(req: NextApiRequest): string | undefined {
+  const credential = parseAuthorizationHeader(req.headers.authorization);
+  if (credential.kind !== "basic") return undefined;
+  if (isApiKey(credential.publicKey)) return undefined;
+  return credential.publicKey;
+}
+
+/** isApiKey reports whether a Basic auth username is a key rather than a project id, so a secret is never echoed back as one. */
+const isApiKey = (username: string) =>
+  username.startsWith(publicKeyPrefix) || username.startsWith(secretKeyPrefix);
 
 /** getUrlProjectId returns the target project from the URL param. */
 function getUrlProjectId(req: NextApiRequest): string | undefined {
@@ -344,6 +384,7 @@ export type EnforceAuthResult =
   | ErrorResult<
       | UnauthorizedError
       | InternalServerError
+      | InvalidRequestError
       | ForbiddenError
       | LangfuseNotFoundError
       | ServiceUnavailableError

@@ -1,11 +1,12 @@
-const SECRET_KEY_PREFIX = "sk-lf-";
+import { secretKeyPrefix } from "@langfuse/shared";
+
 const VISIBLE_CHARACTERS = 4;
 const MASK = "•".repeat(20);
 
 /** Keeps the `sk-lf-` prefix plus the first and last four characters readable. */
 export function maskSecretKey(secretKey: string) {
-  const prefixLength = secretKey.startsWith(SECRET_KEY_PREFIX)
-    ? SECRET_KEY_PREFIX.length
+  const prefixLength = secretKey.startsWith(secretKeyPrefix)
+    ? secretKeyPrefix.length
     : 0;
   const secretPart = secretKey.slice(prefixLength);
   if (secretPart.length <= VISIBLE_CHARACTERS * 2) return MASK;

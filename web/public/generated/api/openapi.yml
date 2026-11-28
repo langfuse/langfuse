@@ -26,7 +26,7 @@ info:
     keys in the project settings:
 
 
-    - username: Langfuse Public Key
+    - username: Langfuse Project Id
 
     - password: Langfuse Secret Key
 

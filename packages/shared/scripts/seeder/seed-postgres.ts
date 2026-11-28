@@ -16,7 +16,7 @@ import {
   ScoreDataTypeEnum,
   type ScoreDataTypeType,
 } from "../../src/index";
-import { createApiKey, getDisplaySecretKey, logger } from "../../src/server";
+import { createApiKey, logger, redactApiKey } from "../../src/server";
 import {
   OrganizationId,
   ProjectId,
@@ -287,7 +287,7 @@ async function main() {
         data: {
           projectId: project1.id,
           secretKey: encrypt(OPENAI_API_KEY),
-          displaySecretKey: getDisplaySecretKey(OPENAI_API_KEY),
+          displaySecretKey: redactApiKey(OPENAI_API_KEY),
           provider: "openai",
           adapter: "openai",
         },
@@ -537,7 +537,7 @@ async function seedAiGateway(params: {
           name: "OpenAI production",
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-seed-openai-not-valid"),
-          displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
+          displaySecret: redactApiKey("sk-seed-openai-not-valid"),
           createdById: params.userId,
           status: "ENABLED",
         },
@@ -547,7 +547,7 @@ async function seedAiGateway(params: {
           name: "Anthropic production",
           provider: "ANTHROPIC",
           encryptedCredential: encrypt("sk-ant-seed-not-valid"),
-          displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
+          displaySecret: redactApiKey("sk-ant-seed-not-valid"),
           createdById: params.userId,
           status: "ENABLED",
         },

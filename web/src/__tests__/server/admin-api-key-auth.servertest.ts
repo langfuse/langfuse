@@ -5,7 +5,7 @@ import { env } from "@/src/env.mjs";
 import {
   createOrgProjectAndApiKey,
   hashSecretKey,
-  getDisplaySecretKey,
+  redactApiKey,
 } from "@langfuse/shared/src/server";
 
 describe("Admin API Key Authentication", () => {
@@ -81,7 +81,7 @@ describe("Admin API Key Authentication", () => {
           id: uniqueId,
           publicKey,
           hashedSecretKey: await hashSecretKey(secretKey),
-          displaySecretKey: getDisplaySecretKey(secretKey),
+          displaySecretKey: redactApiKey(secretKey),
           note: "org key",
           organization: {
             connect: { id: orgId },

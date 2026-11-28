@@ -1430,7 +1430,7 @@ describe("Projects API", () => {
       );
 
       expect(result.status).toBe(400);
-      expect(result.body.message).toContain("publicKey must start with");
+      expect(result.body.message).toBe("Public keys must start with 'pk-lf-'");
     });
 
     it("should return 400 when secretKey does not start with sk-lf-", async () => {
@@ -1450,7 +1450,7 @@ describe("Projects API", () => {
       );
 
       expect(result.status).toBe(400);
-      expect(result.body.message).toContain("secretKey must start with");
+      expect(result.body.message).toBe("Secret keys must start with 'sk-lf-'");
     });
 
     it("should return 409 when predefined publicKey already exists", async () => {

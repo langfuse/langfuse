@@ -27,7 +27,13 @@ import {
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod";
-import { CloudConfigSchema, isPlan, UnauthorizedError } from "@langfuse/shared";
+import {
+  CloudConfigSchema,
+  isPlan,
+  publicKeyPrefix,
+  secretKeyPrefix,
+  UnauthorizedError,
+} from "@langfuse/shared";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { containsNulByte } from "@/src/features/apiKey/apiKeyRepository";
 
@@ -194,8 +200,12 @@ export class ApiAuthService {
 
             // The API key is resolved via the hash of the secret key, so the
             // submitted public key may not belong to it, e.g. after a partial
-            // credential rotation on the client.
-            if (publicKey !== finalApiKey.publicKey) {
+            // credential rotation on the client. A username without a key
+            // prefix is a project id, which enforceAuth reads instead.
+            const isLangfuseKey =
+              publicKey.startsWith(publicKeyPrefix) ||
+              publicKey.startsWith(secretKeyPrefix);
+            if (isLangfuseKey && publicKey !== finalApiKey.publicKey) {
               logger.warn(
                 `Public key mismatch on basic auth: submitted public key ${formatSubmittedPublicKeyForLog(publicKey)} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
               );

@@ -19,6 +19,8 @@ import {
   type UserId,
 } from "../../features/rbac/types";
 import { logger } from "../logger";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { publicKeyPrefix, secretKeyPrefix } from "../../constants";
 import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
@@ -26,21 +28,17 @@ import { withTransaction } from "../utils/withTransaction";
 /** orgBoundApiKeyScopes are the scopes of keys that belong to an organization through their orgId. */
 export const orgBoundApiKeyScopes: ApiKeyScope[] = ["ORGANIZATION", "USER"];
 
-export function getDisplaySecretKey(secretKey: string) {
-  return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
+/** redactApiKey masks an API key to its last four characters, keeping only a Langfuse prefix: `sk-lf-...abcd`, `...abcd`. */
+export function redactApiKey(value: string): string {
+  const prefix = value.startsWith(secretKeyPrefix) ? secretKeyPrefix : "";
+  return `${prefix}...${value.slice(-4)}`;
 }
 
-const LANGFUSE_SECRET_KEY_PATTERN = /sk-lf-[A-Za-z0-9_-]+/g;
+const secretKeyPattern = new RegExp(`${secretKeyPrefix}[A-Za-z0-9_-]+`, "g");
 
-/**
- * Replaces every Langfuse secret key inside a user-controlled string with its
- * display form (`sk-lf-...abcd`), so the value can be logged or attached to a
- * span without exposing the secret.
- */
+/** redactLangfuseSecretKeys masks every Langfuse secret key in a text, so it can be logged or attached to a span. */
 export function redactLangfuseSecretKeys(value: string): string {
-  return value.replace(LANGFUSE_SECRET_KEY_PATTERN, (match) =>
-    getDisplaySecretKey(match),
-  );
+  return value.replace(secretKeyPattern, redactApiKey);
 }
 
 const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
@@ -48,9 +46,9 @@ const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
 /** formatSubmittedPublicKeyForLog masks values without a pk-lf- prefix and sanitizes untrusted input for logging. */
 export function formatSubmittedPublicKeyForLog(value: string): string {
   let formatted: string;
-  if (value.startsWith("pk-lf-")) formatted = value;
+  if (value.startsWith(publicKeyPrefix)) formatted = value;
   else if (value.length < 12) formatted = "****";
-  else formatted = getDisplaySecretKey(value);
+  else formatted = redactApiKey(value);
 
   return JSON.stringify(
     formatted
@@ -77,8 +75,8 @@ export function createLegacySecretKeyPlaceholder(): string {
 
 export async function generateKeySet() {
   return {
-    pk: `pk-lf-${randomUUID()}`,
-    sk: `sk-lf-${randomUUID()}`,
+    pk: `${publicKeyPrefix}${randomUUID()}`,
+    sk: `${secretKeyPrefix}${randomUUID()}`,
   };
 }
 
@@ -220,11 +218,21 @@ async function generateKeyMaterial({
     const { pk, sk } = await generateKeySet();
     keys = { publicKey: pk, secretKey: sk };
   }
+  if (!keys.publicKey.startsWith(publicKeyPrefix)) {
+    throw new InvalidRequestError(
+      `Public keys must start with '${publicKeyPrefix}'`,
+    );
+  }
+  if (!keys.secretKey.startsWith(secretKeyPrefix)) {
+    throw new InvalidRequestError(
+      `Secret keys must start with '${secretKeyPrefix}'`,
+    );
+  }
   return {
     publicKey: keys.publicKey,
     hashedSecretKey: createLegacySecretKeyPlaceholder(),
     fastHashedSecretKey: createShaHash(keys.secretKey, salt),
-    displaySecretKey: getDisplaySecretKey(keys.secretKey),
+    displaySecretKey: redactApiKey(keys.secretKey),
     secretKey: keys.secretKey,
   };
 }

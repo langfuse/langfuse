@@ -6,7 +6,7 @@ import {
   createOrgProjectAndApiKey,
   createShaHash,
   generateKeySet,
-  getDisplaySecretKey,
+  redactApiKey,
   hashSecretKey,
   logger,
 } from "@langfuse/shared/src/server";
@@ -271,7 +271,7 @@ describe("Authenticate API calls", () => {
           projectId: testApiKey.projectId,
           publicKey: legacyPublicKey,
           hashedSecretKey: await hashSecretKey(legacySecretKey),
-          displaySecretKey: getDisplaySecretKey(legacySecretKey),
+          displaySecretKey: redactApiKey(legacySecretKey),
           scope: "PROJECT",
         },
       });
@@ -403,10 +403,32 @@ describe("Authenticate API calls", () => {
         .find((message) => message.includes("Public key mismatch"));
       expect(mismatchWarning).toBeDefined();
       expect(mismatchWarning).not.toContain(testApiKey.secretKey);
-      expect(mismatchWarning).toContain(
-        getDisplaySecretKey(testApiKey.secretKey),
-      );
+      expect(mismatchWarning).toContain(redactApiKey(testApiKey.secretKey));
       expect(mismatchWarning).toContain(testApiKey.publicKey);
+
+      warnSpy.mockRestore();
+    });
+
+    it("does not warn when the Basic auth username is a project id", async () => {
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        createBasicAuthHeader(testApiKey.projectId, testApiKey.secretKey),
+      );
+
+      expect(auth.validKey).toBe(true);
+      expect(
+        warnSpy.mock.calls.filter((call) =>
+          String(call[0]).includes("Public key mismatch"),
+        ),
+      ).toHaveLength(0);
 
       warnSpy.mockRestore();
     });
@@ -547,7 +569,7 @@ describe("Authenticate API calls", () => {
           projectId: testApiKey.projectId,
           publicKey: legacyPublicKey,
           hashedSecretKey: await hashSecretKey(legacySecretKey),
-          displaySecretKey: getDisplaySecretKey(legacySecretKey),
+          displaySecretKey: redactApiKey(legacySecretKey),
           scope: "PROJECT",
         },
       });

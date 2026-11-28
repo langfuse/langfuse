@@ -7,10 +7,6 @@ import { hasEntitlementBasedOnPlan } from "@langfuse/shared";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { writeProjectError } from "@/src/features/public-api/server/writeError";
 
-/** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
-const projectKeyRequired =
-  "Invalid API key. Are you using an organization key?";
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -31,10 +27,9 @@ export default async function handler(
       allowedAccessLevels: ["project"],
     });
     if (!auth.success) {
-      const status = auth.error.httpCode;
-      return res.status(status).json({
-        message: status === 403 ? projectKeyRequired : auth.error.message,
-      });
+      return res
+        .status(auth.error.httpCode)
+        .json({ message: auth.error.message });
     }
     // project:read guarantees a project-scoped key, so projectId is always set.
     const projectId = auth.scope.projectId as string;
