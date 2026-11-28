@@ -315,5 +315,38 @@ describe("toggleStripeTopic", () => {
         value: ["t-support-2", "Unloaded"],
       },
     ]);
+
+    // Toggling an unrelated segment leaves an existing legacy name untouched (so off-page/folded matches stay intact).
+    expect(
+      toggleStripeTopic(legacyDuplicate, "Intent", "t-billing", stripeTopics),
+    ).toEqual([
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Support", "Unloaded", "t-billing"],
+      },
+    ]);
+    const billingAndSupport: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing", "Support"],
+      },
+    ];
+    expect(
+      toggleStripeTopic(billingAndSupport, "Intent", "t-billing", stripeTopics),
+    ).toEqual([
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Support"],
+      },
+    ]);
   });
 });

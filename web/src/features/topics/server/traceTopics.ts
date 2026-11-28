@@ -11,7 +11,7 @@ import {
   readCurrentTraceTopics,
 } from "@langfuse/shared/topics/server";
 
-/** Sidebar and search bar options: facet name → `{ value: stableTopicId, displayValue: name }` of its current published maps. */
+/** Sidebar and search bar options: facet name → `{ value: stableTopicId, displayValue, name }` of its current published maps. */
 export async function topicFilterOptions(projectId: string) {
   const [facets, rules] = await Promise.all([
     listTopicFacets(projectId).then(sortTopicFacets),
@@ -24,23 +24,28 @@ export async function topicFilterOptions(projectId: string) {
   const ruleNameById = new Map(rules.map((rule) => [rule.id, rule.name]));
   return Object.fromEntries(
     facets.flatMap((facet) => {
-      const options = buildTopicFilterOptions(
-        maps
-          .filter((map) => map.facetId === facet.id)
-          .flatMap((map) => {
-            const qualifier = map.ruleId
-              ? ruleNameById.get(map.ruleId)
-              : undefined;
-            return map.topics.map((topic) => ({
-              id: topic.topicId,
-              name: topic.name,
-              ...(qualifier ? { qualifier } : {}),
-            }));
-          }),
+      const facetTopics = maps
+        .filter((map) => map.facetId === facet.id)
+        .flatMap((map) => {
+          const qualifier = map.ruleId
+            ? ruleNameById.get(map.ruleId)
+            : undefined;
+          return map.topics.map((topic) => ({
+            id: topic.topicId,
+            name: topic.name,
+            ...(qualifier ? { qualifier } : {}),
+          }));
+        });
+      const nameById = new Map(
+        facetTopics.map((topic) => [topic.id, topic.name]),
       );
+      const options = buildTopicFilterOptions(facetTopics).map((option) => ({
+        ...option,
+        name: nameById.get(option.value) ?? option.displayValue,
+      }));
       return options.length > 0 ? [[facet.name, options]] : [];
     }),
-  ) as Record<string, { value: string; displayValue: string }[]>;
+  ) as Record<string, { value: string; displayValue: string; name: string }[]>;
 }
 
 /** Latest topics for a page of traces: one ClickHouse read across facets, one topic or outlier per rule's map. */

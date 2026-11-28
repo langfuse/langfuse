@@ -178,25 +178,59 @@ export function selectedStripeTopics(
   );
 }
 
-/** Adds the topic to the facet's first "any of" filter, or removes it; other filters stay as they are. */
+/** Adds the topic to the facet's first "any of" filter, or removes it; other filters and untouched legacy values stay as they are. */
 export function toggleStripeTopic(
   filters: FilterState,
   facet: string,
   topic: string,
   topics: readonly StripeTopicIdentity[] = [],
 ): FilterState {
-  const selected = selectedStripeTopics(filters, facet, topics);
-  if (selected.has(topic)) selected.delete(topic);
-  else selected.add(topic);
   const index = filters.findIndex(isFacetAnyOfFilter(facet));
+  const rawValues =
+    index !== -1 && filters[index]?.type === "categoryOptions"
+      ? filters[index].value
+      : [];
+  const selected = resolveStripeFilterValues(rawValues, topics);
+  let nextValues: string[];
+
+  if (!selected.has(topic)) {
+    // Adding a topic preserves all existing entries (including legacy names) as-is.
+    nextValues = [...rawValues, topic];
+  } else {
+    const clickedTopic = topics.find((item) => item.topicId === topic);
+    const sameNameSiblingIds = clickedTopic
+      ? topics
+          .filter(
+            (item) => item.name === clickedTopic.name && item.topicId !== topic,
+          )
+          .map((item) => item.topicId)
+      : [];
+    const seen = new Set<string>();
+    const add = (value: string) => {
+      if (seen.has(value)) return;
+      seen.add(value);
+      nextValues.push(value);
+    };
+    nextValues = [];
+    for (const entry of rawValues) {
+      if (entry === topic) continue;
+      if (clickedTopic && entry === clickedTopic.name) {
+        for (const siblingId of sameNameSiblingIds) add(siblingId);
+        continue;
+      }
+      add(entry);
+    }
+  }
+
   const next: FilterState[number] = {
     type: "categoryOptions",
     column: "topics",
     key: facet,
     operator: "any of",
-    value: [...selected],
+    value: nextValues,
   };
-  if (index === -1) return selected.size === 0 ? filters : [...filters, next];
-  if (selected.size === 0) return filters.filter((_, i) => i !== index);
+  if (index === -1)
+    return nextValues.length === 0 ? filters : [...filters, next];
+  if (nextValues.length === 0) return filters.filter((_, i) => i !== index);
   return filters.map((filter, i) => (i === index ? next : filter));
 }

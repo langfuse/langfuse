@@ -43,8 +43,13 @@ export function useTopicStripe({
   projectId: string;
   enabled: boolean;
   rows: { traceId?: string | null; startTime: Date }[];
-  /** Facet name → its published topic options; picks the facet. */
-  facetTopics: Record<string, readonly unknown[]> | undefined;
+  /** Facet name → its published topic options; picks the facet and supplies all known topic IDs/names. */
+  facetTopics:
+    | Record<
+        string,
+        readonly { value: string; displayValue: string; name?: string }[]
+      >
+    | undefined;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
 }) {
@@ -62,6 +67,23 @@ export function useTopicStripe({
   const segments = topicStripeSegments({ rows, topicsByTrace, facet, map });
   const stripeTopics = segments.filter((segment) => segment.kind === "topic");
   if (stripeTopics.length === 0) return null;
+  // Combine all published topics for this facet (including off-page/folded ones) with visible stripe topics.
+  const knownTopicsById = new Map<string, { topicId: string; name: string }>();
+  for (const option of facetTopics?.[facet] ?? []) {
+    knownTopicsById.set(option.value, {
+      topicId: option.value,
+      name: option.name ?? option.displayValue,
+    });
+  }
+  for (const segment of stripeTopics) {
+    if (!knownTopicsById.has(segment.topicId)) {
+      knownTopicsById.set(segment.topicId, {
+        topicId: segment.topicId,
+        name: segment.name,
+      });
+    }
+  }
+  const knownTopics = [...knownTopicsById.values()];
   const query = new URLSearchParams({
     ...(map.ruleId ? topicMapQuery({ kind: "rule", id: map.ruleId }) : {}),
     topicFacet: map.facetId,
@@ -69,9 +91,9 @@ export function useTopicStripe({
   return {
     facet,
     segments,
-    selected: selectedStripeTopics(filters, facet, stripeTopics),
+    selected: selectedStripeTopics(filters, facet, knownTopics),
     onToggle: (topic: string) =>
-      onFiltersChange(toggleStripeTopic(filters, facet, topic, stripeTopics)),
+      onFiltersChange(toggleStripeTopic(filters, facet, topic, knownTopics)),
     details: {
       ...topicStripeCoverage({ rows, topicsByTrace, facet, map }),
       mapName: map.mapName,
