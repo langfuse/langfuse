@@ -23,6 +23,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       {...props}
       className={cn("toaster group ph-no-capture", props.className)}
+      // Inline: the library's own font rule is unlayered and beats utilities.
+      style={{ fontFamily: "var(--font-sans)", ...props.style }}
     />
   );
 };

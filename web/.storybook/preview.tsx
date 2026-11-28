@@ -15,7 +15,7 @@ import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { LayerProvider } from "../src/context/LayerContext/LayerContext";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
-import { plexMono } from "../src/styles/fonts";
+import { fontVariables } from "../src/styles/fonts";
 import { cn } from "../src/utils/tailwind";
 import "./storybook.css";
 import "./docs.css";
@@ -62,7 +62,7 @@ function StorybookThemeProvider({
     >
       <div
         id="__next"
-        className={cn(plexMono.variable, "bg-background text-foreground")}
+        className={cn(fontVariables, "bg-background text-foreground")}
         style={{ height: fullHeight ? "100vh" : "auto" }}
       >
         <div>{children}</div>
@@ -70,6 +70,12 @@ function StorybookThemeProvider({
     </ThemeProvider>
   );
 }
+
+// `--font-sans` and `--font-mono` resolve on :root, so the font variables go
+// on <html>, as in _document.tsx.
+document.documentElement.classList.add(
+  ...fontVariables.split(" ").filter(Boolean),
+);
 
 const syncTheme = ({ globals }: { globals?: { theme?: unknown } }) => {
   document.documentElement.classList.toggle("dark", globals?.theme === "dark");
