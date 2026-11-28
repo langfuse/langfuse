@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use Langfuse in your research, please cite it using the metadata below."
+title: "Langfuse — Open source AI agent evaluations and observability platform"
+type: software
+authors:
+  - family-names: Rawert
+    given-names: Clemens
+  - family-names: Klingen
+    given-names: Marc
+  - family-names: Deichmann
+    given-names: Maximilian
+repository-code: "https://github.com/langfuse/langfuse"
+url: "https://langfuse.com"
+license: MIT
+abstract: >-
+  Langfuse is an open-source LLM engineering platform for developing,
+  monitoring, evaluating, and debugging AI applications. It provides tracing,
+  prompt management, evaluations, datasets, and metrics.
+keywords:
+  - llm
+  - observability
+  - tracing
+  - evaluation
+  - prompt-management
+  - llmops
+preferred-citation:
+  type: software
+  title: "Langfuse — Open source AI agent evaluations and observability platform"
+  authors:
+    - family-names: Rawert
+      given-names: Clemens
+    - family-names: Klingen
+      given-names: Marc
+    - family-names: Deichmann
+      given-names: Maximilian
+  year: 2023
+  url: "https://langfuse.com"
+  repository-code: "https://github.com/langfuse/langfuse"
+  notes: "Software available from https://langfuse.com"
