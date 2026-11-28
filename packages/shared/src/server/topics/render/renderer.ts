@@ -5,8 +5,6 @@ import type {
   NormalizedMessagePart,
 } from "../../../utils/normalized-io";
 import { normalizeIO } from "../../normalized-io/parser";
-import { orderObservations } from "../../transcript/ordering";
-import { assembleTranscript } from "../../transcript/transcript";
 import { isExecutionIssue } from "../../transcript/context";
 import type { Transcript } from "../../transcript/types";
 import {
@@ -14,7 +12,7 @@ import {
   type TranscriptRenderConfig,
 } from "./renderer-config";
 
-export const transcriptBlockTypes = [
+const transcriptBlockTypes = [
   "user",
   "assistant",
   "system",
@@ -842,19 +840,4 @@ export function renderTranscript(
       currentTurnCharacters,
     },
   };
-}
-
-/** Assemble only for callers that do not already have the shared transcript. */
-export function renderTranscriptFromObservations(
-  observations: Observation[],
-  configInput: TranscriptRenderConfig,
-  countTokens?: (text: string) => number,
-) {
-  const orderedObservations = orderObservations(observations);
-  return renderTranscript(
-    assembleTranscript(orderedObservations),
-    orderedObservations,
-    configInput,
-    countTokens,
-  );
 }

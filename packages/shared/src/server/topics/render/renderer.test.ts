@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import { convertObservation } from "../../repositories/observations_converters";
 import { createObservation } from "../../test-utils/tracing-factory";
 import { inheritedConversationHistoryFixture } from "../../transcript/__tests__/fixtures/trace/inherited-conversation-history";
-import { standaloneToolObservationFixture } from "../../transcript/__tests__/fixtures/trace/standalone-tool-observation";
 import { orderObservations } from "../../transcript/ordering";
-import { renderTranscript, renderTranscriptFromObservations } from "./renderer";
+import { renderTranscript } from "./renderer";
 import { topicsTranscriptConfig } from "./renderer-config";
 import { assembleTranscript } from "../../transcript/transcript";
 import type { Transcript } from "../../transcript/types";
@@ -27,7 +26,7 @@ const observation = (
 });
 
 describe("Topics transcript renderer", () => {
-  it("renders an existing assembly identically to the observations-only path", () => {
+  it("renders an assembled transcript with run facts, history and the end-of-run block", () => {
     const observations = inheritedConversationHistoryFixture.observations.map(
       (observation) => convertObservation(createObservation(observation)),
     );
@@ -38,9 +37,6 @@ describe("Topics transcript renderer", () => {
       topicsTranscriptConfig,
     );
 
-    expect(result).toEqual(
-      renderTranscriptFromObservations(observations, topicsTranscriptConfig),
-    );
     expect(result.text).toBe(
       [
         "<run_facts>",
@@ -65,23 +61,6 @@ describe("Topics transcript renderer", () => {
     expect(result.stats.historyCharacters).toBeGreaterThan(0);
     expect(result.stats.currentTurnCharacters).toBeGreaterThan(0);
     expect(result.tokens).toBeNull();
-
-    const reversedObservations = standaloneToolObservationFixture.observations
-      .map((observation) => convertObservation(createObservation(observation)))
-      .reverse();
-    const ordered = orderObservations(reversedObservations);
-    expect(
-      renderTranscriptFromObservations(
-        reversedObservations,
-        topicsTranscriptConfig,
-      ),
-    ).toEqual(
-      renderTranscript(
-        assembleTranscript(ordered),
-        ordered,
-        topicsTranscriptConfig,
-      ),
-    );
   });
 
   it("counts characters before and after the Topics block cap", () => {
