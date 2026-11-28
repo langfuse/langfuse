@@ -230,8 +230,8 @@ function drawMap(
     context.translate(x, y);
     context.scale(rx, ry);
     const gradient = context.createRadialGradient(0, 0, 0, 0, 0, 1);
-    gradient.addColorStop(0, colors.paint(zone.color, 0.3));
-    gradient.addColorStop(0.7, colors.paint(zone.color, 0.1));
+    gradient.addColorStop(0, colors.paint(zone.color, 0.15));
+    gradient.addColorStop(0.7, colors.paint(zone.color, 0.05));
     gradient.addColorStop(1, colors.paint(zone.color, 0));
     context.fillStyle = gradient;
     context.beginPath();
