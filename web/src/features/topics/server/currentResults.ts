@@ -111,13 +111,8 @@ async function resolveFacetMaps(
 ): Promise<FacetMap[]> {
   if (scope.analysisId) {
     const execution = await requireAnalysis(projectId, scope.analysisId);
-    const orderedFacets = orderByFacetIds(
-      execution.facets,
-      (progress) => progress.facetId,
-      facets.map((facet) => facet.id),
-    );
     return Promise.all(
-      orderedFacets.flatMap((progress) => {
+      orderByFacetIds(execution.facets, facets).flatMap((progress) => {
         const facet = facets.find((item) => item.id === progress.facetId);
         if (!facet) return [];
         return [
@@ -307,7 +302,6 @@ export async function analysisTopicResults(
 ) {
   const execution = await requireAnalysis(projectId, executionId);
   const facets = sortTopicFacets(await listTopicFacets(projectId));
-  const orderedFacetIds = facets.map((facet) => facet.id);
   const maps = await resolveFacetMaps(
     projectId,
     { analysisId: executionId },
@@ -322,11 +316,7 @@ export async function analysisTopicResults(
       timeRange: execution.input.timeRange,
       ...execution.input.analysis,
       // Per-facet progress while the snapshot summarizes and groups.
-      progress: orderByFacetIds(
-        execution.facets,
-        (facet) => facet.facetId,
-        orderedFacetIds,
-      ).map((facet) => ({
+      progress: orderByFacetIds(execution.facets, facets).map((facet) => ({
         facetId: facet.facetId,
         outcome: facet.outcome,
         requested: facet.counts.requested,

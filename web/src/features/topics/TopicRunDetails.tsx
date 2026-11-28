@@ -338,11 +338,7 @@ export function TopicRunDetails({
           Questions
         </h3>
         <div className="divide-y">
-          {orderByFacetIds(
-            execution.facets,
-            (progress) => progress.facetId,
-            facets.map((facet) => facet.id),
-          ).map((progress) => (
+          {orderByFacetIds(execution.facets, facets).map((progress) => (
             <QuestionRow
               key={`${progress.facetId}:${progress.facetVersion}`}
               progress={progress}

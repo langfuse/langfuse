@@ -406,19 +406,15 @@ function TopicsWorkspaceContent({
   const setupRetry = api.topics.startRuleSetup.useMutation({
     onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
   });
-  const orderedFacetIds = (facets.data ?? []).map((facet) => facet.id);
-  const setupFacets = setup
-    ? orderByFacetIds(
-        setup.facets,
-        (facet) => facet.facetId,
-        orderedFacetIds,
-      ).map((facet) => ({
-        key: facet.facetId,
-        name: facetName(facet.facetId),
-        complete: facet.complete,
-        requested: facet.requested,
-      }))
-    : [];
+  const setupFacets = orderByFacetIds(
+    setup?.facets ?? [],
+    facets.data ?? [],
+  ).map((facet) => ({
+    key: facet.facetId,
+    name: facetName(facet.facetId),
+    complete: facet.complete,
+    requested: facet.requested,
+  }));
   const analysisResults = api.topics.analysisResults.useQuery(
     { projectId, executionId: analysisId ?? "" },
     {

@@ -10,62 +10,28 @@ const BUILT_IN_FACET_ORDER = new Map<string, number>(
   DEFAULT_TOPIC_FACETS.map((facet, index) => [facet.name, index]),
 );
 
-function compareStrings(a: string, b: string) {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
+function facetRank(facet: { name: string; isBuiltIn: boolean }) {
+  if (!facet.isBuiltIn) return BUILT_IN_FACET_ORDER.size + 1;
+  return BUILT_IN_FACET_ORDER.get(facet.name) ?? BUILT_IN_FACET_ORDER.size;
 }
 
-function createdAtMs(value: Date | string | undefined) {
-  if (value === undefined) return null;
-  const ms = value instanceof Date ? value.getTime() : Date.parse(value);
-  return Number.isNaN(ms) ? null : ms;
-}
-
-/**
- * Canonical facet order: built-in presets (`Intent`, `Sentiment`, `Outcome`,
- * `Issues`), other built-ins, then custom facets (`createdAt ASC, id ASC`).
- */
-export function sortTopicFacets<
-  T extends {
-    id: string;
-    name: string;
-    isBuiltIn: boolean;
-    createdAt?: Date | string;
-  },
->(facets: readonly T[]): T[] {
-  const tier = (f: T) =>
-    !f.isBuiltIn
-      ? BUILT_IN_FACET_ORDER.size + 1
-      : (BUILT_IN_FACET_ORDER.get(f.name) ?? BUILT_IN_FACET_ORDER.size);
-  return [...facets].sort((a, b) => {
-    const tierDiff = tier(a) - tier(b);
-    if (tierDiff !== 0) return tierDiff;
-    if (a.isBuiltIn && b.isBuiltIn) {
-      return (
-        compareStrings(a.name.toLowerCase(), b.name.toLowerCase()) ||
-        compareStrings(a.id, b.id)
-      );
-    }
-    const aMs = createdAtMs(a.createdAt);
-    const bMs = createdAtMs(b.createdAt);
-    return aMs !== null && bMs !== null
-      ? aMs - bMs || compareStrings(a.id, b.id)
-      : 0;
-  });
-}
-
-/** Orders facet-keyed items by `orderedFacetIds`, keeping unknown IDs last. */
-export function orderByFacetIds<T>(
-  items: readonly T[],
-  getFacetId: (item: T) => string,
-  orderedFacetIds: readonly string[],
+/** Built-in presets in `DEFAULT_TOPIC_FACETS` order first; other facets keep their existing order. */
+export function sortTopicFacets<T extends { name: string; isBuiltIn: boolean }>(
+  facets: readonly T[],
 ): T[] {
-  const rank = new Map(orderedFacetIds.map((id, index) => [id, index]));
+  return [...facets].sort((a, b) => facetRank(a) - facetRank(b));
+}
+
+/** Orders `{ facetId }` items to match `facets`, keeping unknown IDs last. */
+export function orderByFacetIds<T extends { facetId: string }>(
+  items: readonly T[],
+  facets: readonly { id: string }[],
+): T[] {
+  const rank = new Map(facets.map((facet, index) => [facet.id, index]));
   return [...items].sort(
     (a, b) =>
-      (rank.get(getFacetId(a)) ?? orderedFacetIds.length) -
-      (rank.get(getFacetId(b)) ?? orderedFacetIds.length),
+      (rank.get(a.facetId) ?? facets.length) -
+      (rank.get(b.facetId) ?? facets.length),
   );
 }
 
