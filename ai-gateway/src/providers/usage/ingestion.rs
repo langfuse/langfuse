@@ -129,15 +129,67 @@ fn split_anthropic_cache_creation(cache_creation: Option<&Value>, result: &mut U
 
 /// `record(string, number.int.nonnegative.nullish).nullish()`: the non-null counts,
 /// or `None` when the field fails the schema.
-fn optional_details(value: Option<&Value>) -> Option<Vec<(&String, f64)>> {
+/// With `allow_nested`, a value may also be such a record, as the Responses API's
+/// `cache_write_tokens_details`; it is validated but not counted here.
+fn optional_details(value: Option<&Value>, allow_nested: bool) -> Option<Vec<(&String, f64)>> {
     match value {
         None | Some(Value::Null) => Some(Vec::new()),
-        Some(Value::Object(details)) => details
-            .iter()
-            .filter(|(_, units)| !units.is_null())
-            .map(|(key, units)| Some((key, count(units)?)))
-            .collect(),
+        Some(Value::Object(details)) => {
+            let mut counts = Vec::new();
+            for (key, units) in details {
+                match units {
+                    Value::Null => {}
+                    Value::Object(_) if allow_nested => {
+                        optional_details(Some(units), false)?;
+                    }
+                    _ => counts.push((key, count(units)?)),
+                }
+            }
+            Some(counts)
+        }
         Some(_) => None,
+    }
+}
+
+/// The Responses API nests cache writes by TTL under
+/// `input_tokens_details.cache_write_tokens_details`. The 30-minute and 12-hour
+/// writes are stored as `input_cache_write_30m_tokens` / `input_cache_write_12h_tokens`;
+/// the aggregate `input_cache_write_tokens` keeps only the unattributed remainder
+/// so no write is counted or priced twice.
+fn split_openai_cache_write_details(
+    details: Option<&Value>,
+    result: &mut UsageCostType,
+    input: &mut f64,
+) {
+    let Some(Value::Object(split)) = details else {
+        return;
+    };
+    let thirty_minute = split.get("ttl_30m_tokens").and_then(count);
+    let twelve_hour = split.get("ttl_12h_tokens").and_then(count);
+    if thirty_minute.is_none() && twelve_hour.is_none() {
+        return;
+    }
+
+    let mut attributed = 0.0;
+    for (key, units) in [
+        ("input_cache_write_30m_tokens", thirty_minute),
+        ("input_cache_write_12h_tokens", twelve_hour),
+    ] {
+        if let Some(units) = units {
+            result.insert(key.into(), units);
+            attributed += units;
+        }
+    }
+
+    let aggregate = result.get("input_cache_write_tokens").copied();
+    if aggregate.is_none() && attributed > 0.0 {
+        *input = (*input - attributed).max(0.0);
+    }
+    let remainder = aggregate.unwrap_or(0.0) - attributed;
+    if remainder > 0.0 {
+        result.insert("input_cache_write_tokens".into(), remainder);
+    } else {
+        result.remove("input_cache_write_tokens");
     }
 }
 
@@ -146,12 +198,14 @@ fn openai_usage(
     fields: &Map<String, Value>,
     [input_key, output_key, total_key]: [&str; 3],
     [input_details_key, output_details_key]: [&str; 2],
+    nested_input_details: bool,
 ) -> Option<UsageCostType> {
     let input_tokens = count(fields.get(input_key)?)?;
     let output_tokens = count(fields.get(output_key)?)?;
     let total_tokens = count(fields.get(total_key)?)?;
-    let input_tokens_details = optional_details(fields.get(input_details_key))?;
-    let output_tokens_details = optional_details(fields.get(output_details_key))?;
+    let input_tokens_details =
+        optional_details(fields.get(input_details_key), nested_input_details)?;
+    let output_tokens_details = optional_details(fields.get(output_details_key), false)?;
 
     let mut unknown_fields = fields.clone();
     for key in [
@@ -172,6 +226,15 @@ fn openai_usage(
         input = (input - units).max(0.0);
     }
 
+    // After the counts, so the aggregate is always present when the breakdown is split.
+    if nested_input_details && let Some(Value::Object(details)) = fields.get(input_details_key) {
+        split_openai_cache_write_details(
+            details.get("cache_write_tokens_details"),
+            &mut result,
+            &mut input,
+        );
+    }
+
     for (key, units) in output_tokens_details {
         result.insert(format!("output_{key}"), units);
         output = (output - units).max(0.0);
@@ -188,6 +251,7 @@ fn openai_completion_usage(value: &Map<String, Value>) -> Option<UsageCostType> 
         value,
         ["prompt_tokens", "completion_tokens", "total_tokens"],
         ["prompt_tokens_details", "completion_tokens_details"],
+        false,
     )
 }
 
@@ -197,6 +261,7 @@ fn openai_response_usage(value: &Map<String, Value>) -> Option<UsageCostType> {
         value,
         ["input_tokens", "output_tokens", "total_tokens"],
         ["input_tokens_details", "output_tokens_details"],
+        true,
     )
 }
 
@@ -265,6 +330,91 @@ mod tests {
                 ("total", 52.0),
             ])
         );
+    }
+
+    #[test]
+    fn responses_cache_writes_are_split_by_ttl_regardless_of_key_order() {
+        let usage = json!({
+            "input_tokens": 1000,
+            "output_tokens": 50,
+            "total_tokens": 1050,
+            "input_tokens_details": {
+                "cache_write_tokens_details": { "ttl_30m_tokens": 200, "ttl_12h_tokens": 300 },
+                "cache_write_tokens": 500,
+            },
+        });
+        assert_eq!(
+            units(usage),
+            expected(&[
+                ("input", 500.0),
+                ("input_cache_write_30m_tokens", 200.0),
+                ("input_cache_write_12h_tokens", 300.0),
+                ("output", 50.0),
+                ("total", 1050.0),
+            ])
+        );
+    }
+
+    #[test]
+    fn responses_cache_writes_keep_the_unattributed_remainder() {
+        let usage = json!({
+            "input_tokens": 1000,
+            "output_tokens": 50,
+            "total_tokens": 1050,
+            "input_tokens_details": {
+                "cache_write_tokens": 600,
+                "cache_write_tokens_details": { "ttl_30m_tokens": 200, "ttl_12h_tokens": 300 },
+            },
+        });
+        assert_eq!(
+            units(usage),
+            expected(&[
+                ("input", 400.0),
+                ("input_cache_write_tokens", 100.0),
+                ("input_cache_write_30m_tokens", 200.0),
+                ("input_cache_write_12h_tokens", 300.0),
+                ("output", 50.0),
+                ("total", 1050.0),
+            ])
+        );
+    }
+
+    #[test]
+    fn responses_cache_write_breakdown_without_aggregate_is_taken_out_of_input() {
+        let usage = json!({
+            "input_tokens": 1000,
+            "output_tokens": 50,
+            "total_tokens": 1050,
+            "input_tokens_details": {
+                "cached_tokens": 100,
+                "cache_write_tokens_details": { "ttl_30m_tokens": 200, "ttl_12h_tokens": 300 },
+            },
+        });
+        assert_eq!(
+            units(usage),
+            expected(&[
+                ("input", 400.0),
+                ("input_cached_tokens", 100.0),
+                ("input_cache_write_30m_tokens", 200.0),
+                ("input_cache_write_12h_tokens", 300.0),
+                ("output", 50.0),
+                ("total", 1050.0),
+            ])
+        );
+    }
+
+    #[test]
+    fn completion_details_reject_nested_objects() {
+        let usage = json!({
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "total_tokens": 150,
+            "prompt_tokens_details": { "cache_write_tokens_details": { "ttl_30m_tokens": 1 } },
+        });
+        let Value::Object(usage) = usage else {
+            panic!("usage is an object")
+        };
+        assert_eq!(openai_completion_usage(&usage), None);
     }
 
     #[test]

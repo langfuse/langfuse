@@ -293,6 +293,42 @@
       "provided_cost_details": null,
       "model_parameters": null,
       "metadata": null,
+      "name": "OpenAI TTL cache writes fall back to the aggregate cache-write price",
+      "usage_details": {
+        "input": 100000,
+        "input_cache_write_30m_tokens": 50000,
+        "input_cache_write_12h_tokens": 50000
+      },
+      "tiers": [
+        {
+          "id": "standard",
+          "name": "Standard",
+          "is_default": true,
+          "priority": 0,
+          "conditions": [],
+          "prices": {
+            "input": 0.0000025,
+            "input_cache_write_tokens": 0.0000025,
+            "input_cache_write_12h_tokens": 0.000005
+          }
+        }
+      ],
+      "expected": {
+        "cost_details": {
+          "input": 0.25,
+          "input_cache_write_30m_tokens": 0.125,
+          "input_cache_write_12h_tokens": 0.25,
+          "total": 0.625
+        },
+        "total_cost": 0.625,
+        "usage_pricing_tier_id": "standard",
+        "usage_pricing_tier_name": "Standard"
+      }
+    },
+    {
+      "provided_cost_details": null,
+      "model_parameters": null,
+      "metadata": null,
       "name": "usage condition above the threshold selects the long-context tier",
       "usage_details": {
         "input": 150,

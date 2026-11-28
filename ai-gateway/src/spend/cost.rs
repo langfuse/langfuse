@@ -110,6 +110,15 @@ const TTL_CACHE_CREATION_USAGE_TYPES: [&str; 2] =
     ["input_cache_creation_5m", "input_cache_creation_1h"];
 const AGGREGATE_CACHE_CREATION_USAGE_TYPES: [&str; 2] =
     ["cache_creation_input_tokens", "input_cache_creation"];
+const TTL_CACHE_WRITE_USAGE_TYPES: [&str; 2] = [
+    "input_cache_write_30m_tokens",
+    "input_cache_write_12h_tokens",
+];
+const AGGREGATE_CACHE_WRITE_USAGE_TYPES: [&str; 3] = [
+    "input_cache_write_tokens",
+    "cache_write_tokens",
+    "input_cache_creation",
+];
 
 fn is_non_bmp(key: &str) -> bool {
     key.chars().any(|character| u32::from(character) > 0xFFFF)
@@ -334,6 +343,11 @@ fn calculate_inferred_costs(
         let mut price = prices.get(usage_type).copied();
         if price.is_none() && TTL_CACHE_CREATION_USAGE_TYPES.contains(&usage_type.as_str()) {
             price = AGGREGATE_CACHE_CREATION_USAGE_TYPES
+                .iter()
+                .find_map(|key| prices.get(*key).copied());
+        }
+        if price.is_none() && TTL_CACHE_WRITE_USAGE_TYPES.contains(&usage_type.as_str()) {
+            price = AGGREGATE_CACHE_WRITE_USAGE_TYPES
                 .iter()
                 .find_map(|key| prices.get(*key).copied());
         }
