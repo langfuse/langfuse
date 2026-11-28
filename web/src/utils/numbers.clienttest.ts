@@ -2,7 +2,23 @@
 
 import { describe, expect, it } from "vitest";
 
-import { centCostFormatter, costFormatter } from "@/src/utils/numbers";
+import {
+  centCostFormatter,
+  costFormatter,
+  latencyFormatter,
+} from "@/src/utils/numbers";
+
+describe("latencyFormatter", () => {
+  it.each([
+    [59_995, "1m"],
+    [59_999, "1m"],
+    [3_599_999, "1h"],
+    [86_399_999, "1d"],
+    [999.996, "1s"],
+  ])("promotes %sms when rounding reaches the next unit", (value, expected) => {
+    expect(latencyFormatter(value)).toBe(expected);
+  });
+});
 
 describe("costFormatter", () => {
   it("formats dashboard costs with cent precision", () => {
