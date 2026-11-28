@@ -50,6 +50,7 @@ import {
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
+import { isSandboxPublicKey } from "../../in-app-agent/constants";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
@@ -1251,6 +1252,9 @@ export class OtelIngestionProcessor {
   private extractPublic(
     attributes?: Record<string, unknown>,
   ): boolean | undefined {
+    // Sandbox script keys cannot publish traces; see processEventBatch.
+    if (isSandboxPublicKey(this.publicKey)) return;
+
     const value =
       attributes?.[LangfuseOtelSpanAttributes.TRACE_PUBLIC] ??
       attributes?.["langfuse.public"];
@@ -2811,6 +2815,9 @@ export class OtelIngestionProcessor {
     decodeMetadataValues: boolean,
     instrumentationScopeName: string | undefined,
   ): string | undefined {
+    // Sandbox script keys cannot write into sessions; see processEventBatch.
+    if (isSandboxPublicKey(this.publicKey)) return;
+
     const sessionIdKeys = ["langfuse.session.id", "session.id"];
 
     /** Claude Managed Agents sessions span multiple threads; conversation IDs identify individual threads. */
@@ -4075,16 +4082,7 @@ export class OtelIngestionProcessor {
       return new Set();
     }
 
-    const traceIds: Set<string> = new Set();
-    if (Array.isArray(resourceSpans)) {
-      resourceSpans.forEach((resourceSpan) => {
-        for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
-          for (const span of scopeSpan?.spans ?? []) {
-            traceIds.add(this.parseId(span.traceId?.data ?? span.traceId));
-          }
-        }
-      });
-    }
+    const traceIds = this.getTraceIds(resourceSpans);
 
     try {
       const results = await Promise.all(
@@ -4115,6 +4113,21 @@ export class OtelIngestionProcessor {
       // Return empty set to continue processing (fail-safe behavior)
       return new Set();
     }
+  }
+
+  /** The Langfuse trace IDs the spans of an export resolve to. */
+  public getTraceIds(resourceSpans: unknown): Set<string> {
+    const traceIds: Set<string> = new Set();
+    if (Array.isArray(resourceSpans)) {
+      resourceSpans.forEach((resourceSpan) => {
+        for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+          for (const span of scopeSpan?.spans ?? []) {
+            traceIds.add(this.parseId(span.traceId?.data ?? span.traceId));
+          }
+        }
+      });
+    }
+    return traceIds;
   }
 
   private parseId(data: any): string {

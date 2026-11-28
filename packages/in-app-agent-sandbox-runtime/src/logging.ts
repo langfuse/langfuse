@@ -53,7 +53,12 @@ export function summarizeOperation(body: SandboxOperation) {
       operation: body.operation,
       timeoutMs: body.timeoutMs ?? null,
       commandBytes: Buffer.byteLength(body.command, "utf8"),
+      envKeyCount: body.env ? Object.keys(body.env).length : 0,
     };
+  }
+
+  if (body.operation === "reap") {
+    return { operation: body.operation };
   }
 
   return assertUnreachable(body);
