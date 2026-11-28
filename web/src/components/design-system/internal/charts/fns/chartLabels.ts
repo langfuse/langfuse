@@ -23,7 +23,21 @@ export function chartLabelUnits(label: string): number {
   );
 }
 
-export function truncateChartLabel(label: string, maxUnits: number): string {
+export function truncateChartLabelByCharacters(
+  label: string,
+  maxCharacters: number,
+): string {
+  if (maxCharacters < 1) return "";
+  const characters = segmentLabel(label);
+  return characters.length > maxCharacters
+    ? `${characters.slice(0, maxCharacters - 1).join("")}…`
+    : label;
+}
+
+export function truncateChartLabelToFit(
+  label: string,
+  maxUnits: number,
+): string {
   if (maxUnits < 1) return "";
   const segments = segmentLabel(label);
   let units = 0;

@@ -137,6 +137,16 @@ describe("prepareTimeAxis", () => {
     expect(axis.formatTooltip("1")).toBe("1");
   });
 
+  it("counts emoji as whole characters in the category label cap", () => {
+    const atLimit = `${"a".repeat(23)}🚀`;
+    const overLimit = `${"b".repeat(22)}👩🏽‍🚀ab`;
+    const axis = prepareTimeAxis([atLimit, overLimit]);
+
+    expect(axis.formatTick(atLimit)).toBe(atLimit);
+    expect(axis.formatTick(overLimit)).toBe(`${"b".repeat(22)}👩🏽‍🚀…`);
+    expect(axis.formatTooltip(overLimit)).toBe(overLimit);
+  });
+
   it("categorical axis thins width-aware (equidistant), not by a numeric index step (LFE-10583)", () => {
     // The smear bug: a numeric recharts `interval` shows every Nth tick BY INDEX
     // and skips the label-collision test, so long entity names overlap however

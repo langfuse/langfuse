@@ -5,7 +5,7 @@ import type { ReactNode, ComponentProps } from "react";
 import type { CartesianPlot } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { CartesianLayout } from "./CartesianLayout";
 import { ChartContainer } from "./ChartContainer";
-import { chartLabelUnits, truncateChartLabel } from "./fns/chartLabels";
+import { chartLabelUnits, truncateChartLabelToFit } from "./fns/chartLabels";
 
 function ChartGrid({
   yTicks,
@@ -98,7 +98,7 @@ function ChartXAxis({
       ? Math.max(1, Math.floor(tick.maxWidth / characterWidth))
       : undefined;
     const label = maxLabelUnits
-      ? truncateChartLabel(tick.label, maxLabelUnits)
+      ? truncateChartLabelToFit(tick.label, maxLabelUnits)
       : tick.label;
     const labelWidth = chartLabelUnits(label) * characterWidth;
     const x = tick.x;

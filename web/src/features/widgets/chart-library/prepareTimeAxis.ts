@@ -16,7 +16,7 @@
  */
 
 import { getEvenTickInterval } from "@/src/features/widgets/chart-library/utils";
-import { truncateChartLabel } from "@/src/components/design-system/internal/charts/fns/chartLabels";
+import { truncateChartLabelByCharacters } from "@/src/components/design-system/internal/charts/fns/chartLabels";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -249,7 +249,7 @@ export function prepareTimeAxis(
       // end-truncate the shown label so a single outlier name can't run
       // off-canvas; the full name always stays in the tooltip.
       formatTick: (raw: unknown) =>
-        truncateChartLabel(full(raw), MAX_CATEGORY_LABEL_CHARS),
+        truncateChartLabelByCharacters(full(raw), MAX_CATEGORY_LABEL_CHARS),
       formatTooltip: full,
       mode: "category",
       showVerticalGrid: false,

@@ -12,7 +12,7 @@ import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 import {
   chartLabelUnits,
-  truncateChartLabel,
+  truncateChartLabelToFit,
 } from "@/src/components/design-system/internal/charts/fns/chartLabels";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
@@ -175,7 +175,7 @@ export function HorizontalBarChart({
                     const maxLabelUnits = Math.floor(
                       labelRoom / CHARACTER_WIDTH,
                     );
-                    const visibleLabel = truncateChartLabel(
+                    const visibleLabel = truncateChartLabelToFit(
                       datum.label,
                       maxLabelUnits,
                     );
