@@ -2,6 +2,7 @@ import type { Session } from "next-auth";
 
 import { BaseError, ForbiddenError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { isOrganizationAITelemetryEnabled } from "@langfuse/shared/src/server";
 import {
   getInAppAgentModelConfig,
   isInAppAgentInstanceEnabled,
@@ -60,7 +61,10 @@ export async function assertInAppAgentAvailable({
     );
   }
 
-  return project.organization;
+  return {
+    ...project.organization,
+    aiTelemetryEnabled: isOrganizationAITelemetryEnabled(project.organization),
+  };
 }
 
 /** Only startRun and approval continuation dispatch to the model. */

@@ -36,7 +36,7 @@ export default function AIFeatureSwitch() {
     aiFeaturesEnabled ?? false,
   );
   const [isAITelemetrySwitchEnabled, setIsAITelemetrySwitchEnabled] = useState(
-    aiTelemetryEnabled ?? true,
+    aiTelemetryEnabled ?? false,
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const hasAccess = useHasOrganizationAccess({
@@ -60,7 +60,7 @@ export default function AIFeatureSwitch() {
       utils.inAppAgent.telemetryProject.invalidate();
     },
     onError: () => {
-      setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
+      setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? false);
     },
   });
 
@@ -146,20 +146,18 @@ export default function AIFeatureSwitch() {
           disabled={!hasAccess}
           locked={!hasAccess}
         />
-        {isLangfuseCloud &&
-          isAIFeatureSwitchEnabled &&
-          aiFeaturesTracingConfigured && (
-            <div className="mt-4 border-t pt-4">
-              <AIFeatureSettingRow
-                title="AI Data Use for Product/Service Improvement"
-                description="Share data about your use of AI with Langfuse for product and service improvement."
-                checked={isAITelemetrySwitchEnabled}
-                onCheckedChange={handleTelemetrySwitchChange}
-                disabled={!hasAccess || updateAITelemetry.isPending}
-                locked={!hasAccess}
-              />
-            </div>
-          )}
+        {isLangfuseCloud && aiFeaturesTracingConfigured && (
+          <div className="mt-4 border-t pt-4">
+            <AIFeatureSettingRow
+              title="AI Data Use for Product/Service Improvement"
+              description="Share data about your use of AI with Langfuse for product and service improvement."
+              checked={isAITelemetrySwitchEnabled}
+              onCheckedChange={handleTelemetrySwitchChange}
+              disabled={!hasAccess || updateAITelemetry.isPending}
+              locked={!hasAccess}
+            />
+          </div>
+        )}
       </Card>
 
       <Dialog

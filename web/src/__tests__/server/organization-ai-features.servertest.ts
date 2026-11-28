@@ -58,9 +58,9 @@ describe("organization AI feature settings", () => {
       await expect(
         prisma.organization.findUniqueOrThrow({
           where: { id: organization.id },
-          select: { aiFeaturesEnabled: true },
+          select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
         }),
-      ).resolves.toEqual({ aiFeaturesEnabled });
+      ).resolves.toEqual({ aiFeaturesEnabled, aiTelemetryEnabled: false });
     },
   );
 
