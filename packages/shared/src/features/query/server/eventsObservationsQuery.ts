@@ -16,6 +16,7 @@ import {
   arrayJoin,
   arrayJoinElements,
   useFinal,
+  utcDateTime,
 } from "../../../server/query-ast/extensions";
 import { lowerEventsFieldCondition } from "../../../server/repositories/events-predicate";
 import type { EventsFieldLowering } from "../../../server/repositories/events-predicate-fields";
@@ -32,7 +33,6 @@ import { type QueryLevel } from "./registryEntry";
 import {
   type AppliedDimensionType,
   type AppliedMetricType,
-  utcDateTime,
   assertKnownRelationTables,
   type BucketValues,
   atLevel,

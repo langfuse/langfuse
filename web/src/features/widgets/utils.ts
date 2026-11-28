@@ -273,6 +273,7 @@ const widgetUnitLabels: Record<string, string> = {
   sessions: "Sessions",
   tools: "Tools",
   calls: "Calls",
+  units: "Billable units",
 };
 
 /**

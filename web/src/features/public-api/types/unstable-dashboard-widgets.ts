@@ -13,6 +13,7 @@ export const PostUnstableDashboardWidgetView = z.enum([
   "scores-numeric",
   "scores-boolean",
   "scores-categorical",
+  "billable-units",
 ]);
 
 const DashboardWidgetViewOutput = z.enum([
@@ -20,6 +21,7 @@ const DashboardWidgetViewOutput = z.enum([
   "scores-numeric",
   "scores-boolean",
   "scores-categorical",
+  "billable-units",
   "traces",
 ]);
 

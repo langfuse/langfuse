@@ -3052,6 +3052,7 @@ describe("MCP Read Tools", () => {
           "scores-numeric",
           "scores-categorical",
           "scores-boolean",
+          "billable-units",
         ],
         granularities: expect.arrayContaining(["day"]),
         config: {

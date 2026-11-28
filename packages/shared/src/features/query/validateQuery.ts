@@ -1,5 +1,5 @@
 import { type QueryType, type ViewVersion } from "./types";
-import { getViewDeclaration } from "./dataModel";
+import { BILLABLE_UNITS_FILTER_COLUMNS, getViewDeclaration } from "./dataModel";
 
 /**
  * Result of query validation.
@@ -149,6 +149,38 @@ function validateEntityDimension(
 }
 
 /**
+ * The views whose query builder takes filters only on a fixed list of
+ * columns, with the view's name for the error message. A view not listed
+ * here is not restricted.
+ */
+const VIEW_FILTER_COLUMNS: Partial<
+  Record<QueryType["view"], { label: string; columns: readonly string[] }>
+> = {
+  "billable-units": {
+    label: "Billable units",
+    columns: BILLABLE_UNITS_FILTER_COLUMNS,
+  },
+};
+
+/**
+ * unsupportedFilterReason returns why a filter column can't be queried on the
+ * view, naming the column and the supported ones, or undefined when every
+ * filter can. Only the views of {@link VIEW_FILTER_COLUMNS} reject columns.
+ */
+export function unsupportedFilterReason(
+  view: QueryType["view"],
+  filters: QueryType["filters"],
+): string | undefined {
+  const restriction = VIEW_FILTER_COLUMNS[view];
+  if (!restriction) return undefined;
+  const unsupported = filters.find(
+    (filter) => !restriction.columns.includes(filter.column),
+  );
+  if (!unsupported) return undefined;
+  return `${restriction.label} can't be filtered by '${unsupported.column}'. Supported filters: ${restriction.columns.join(", ")}`;
+}
+
+/**
  * Validates a query for safety before execution.
  * Performs sanity checks for high cardinality dimension validation.
  *
@@ -173,6 +205,11 @@ export function validateQuery(
       valid: false,
       reason: "timeDimension and entityDimension are mutually exclusive",
     };
+  }
+
+  const filterReason = unsupportedFilterReason(query.view, query.filters);
+  if (filterReason) {
+    return { valid: false, reason: filterReason };
   }
 
   if (query.entityDimension && version !== "v2") {

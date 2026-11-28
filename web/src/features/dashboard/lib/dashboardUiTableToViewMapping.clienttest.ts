@@ -58,6 +58,45 @@ describe("widget filter mappings", () => {
       ]);
     },
   );
+
+  it("round-trips the billable-units unit type filter between editor and query view space", () => {
+    const canonicalFilter = {
+      column: "unitType",
+      type: "stringOptions" as const,
+      operator: "any of" as const,
+      value: ["trace"],
+    };
+    const editorFilter = { ...canonicalFilter, column: "Unit type" };
+
+    expect(
+      mapWidgetUiTableFilterToView("billable-units", [editorFilter]),
+    ).toEqual([canonicalFilter]);
+    expect(
+      mapViewFilterToUiTableFilter("billable-units", [canonicalFilter]),
+    ).toEqual([editorFilter]);
+  });
+
+  it("drops dashboard filters on fields billable units can't be filtered by", () => {
+    const environmentFilter = {
+      column: "environment",
+      type: "stringOptions" as const,
+      operator: "any of" as const,
+      value: ["production"],
+    };
+    const tagsFilter = {
+      column: "tags",
+      type: "arrayOptions" as const,
+      operator: "any of" as const,
+      value: ["beta"],
+    };
+
+    expect(
+      mapLegacyUiTableFilterToView("billable-units", [
+        tagsFilter,
+        environmentFilter,
+      ]),
+    ).toEqual([environmentFilter]);
+  });
 });
 
 describe("displayNameForFilterColumn", () => {

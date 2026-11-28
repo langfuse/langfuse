@@ -44,4 +44,5 @@ export const viewLabels: Record<MonitorView, string> = {
   "scores-numeric": "Scores (numeric)",
   "scores-boolean": "Scores (boolean)",
   "scores-categorical": "Scores (categorical)",
+  "billable-units": "Billable units",
 };

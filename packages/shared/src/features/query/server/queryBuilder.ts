@@ -10,12 +10,14 @@ import {
 } from "../types";
 
 import {
+  billableUnitsView,
   eventsObservationsView,
   eventsTracesView,
   getViewDeclaration,
 } from "../dataModel";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
+import { buildBillableUnits } from "./billableUnitsQuery";
 import { buildScores, SCORE_VIEWS_V2 } from "./scoresQuery";
 import { buildEventsObservations } from "./eventsObservationsQuery";
 import { buildEventsTraces } from "./eventsTracesQuery";
@@ -46,8 +48,9 @@ export class QueryBuilder {
   }
 
   /**
-   * The ClickHouse SQL and parameters of `query` for `projectId`. The v2
-   * observations view ({@link buildEventsObservations}), the v2 traces view
+   * The ClickHouse SQL and parameters of `query` for `projectId`. The
+   * billable-units view ({@link buildBillableUnits}), the v2 observations
+   * view ({@link buildEventsObservations}), the v2 traces view
    * ({@link buildEventsTraces}) and the v2 score views ({@link buildScores})
    * compile through the query AST; every other view and version is
    * assembled as SQL text ({@link buildSqlText}).
@@ -66,6 +69,14 @@ export class QueryBuilder {
       );
     }
     const view = this.getViewDeclaration(query.view);
+    if (view === billableUnitsView) {
+      return buildBillableUnits(
+        query,
+        projectId,
+        this.version,
+        this.chartConfig,
+      );
+    }
     if (view === eventsObservationsView) {
       return buildEventsObservations(
         query,

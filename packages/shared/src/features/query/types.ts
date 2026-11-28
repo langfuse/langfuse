@@ -127,6 +127,7 @@ export const views = z.enum([
   "scores-numeric",
   "scores-categorical",
   "scores-boolean",
+  "billable-units",
   // "sessions",
   // "users",
 ]);
@@ -138,6 +139,7 @@ export const viewsV2 = z.enum([
   "scores-numeric",
   "scores-categorical",
   "scores-boolean",
+  "billable-units",
 ]);
 
 /**
@@ -160,6 +162,7 @@ export const persistedWidgetViewToQueryView = {
   SCORES_NUMERIC: "scores-numeric",
   SCORES_BOOLEAN: "scores-boolean",
   SCORES_CATEGORICAL: "scores-categorical",
+  BILLABLE_UNITS: "billable-units",
 } as const satisfies Record<string, z.infer<typeof views>>;
 
 export const viewVersions = z.enum(["v1", "v2"]);

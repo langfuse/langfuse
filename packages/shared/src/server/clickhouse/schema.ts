@@ -23,6 +23,9 @@ export const ClickhouseTableNames = {
   scores_listable_count: "scores_listable_count",
   events_traces: "events_traces",
   events_observations: "events_observations",
+  // Billing ledger and its dashboard view alias (`billableUnitsView`).
+  billable_events: "billable_events",
+  billable_units: "billable_units",
 } as const;
 
 export type ClickhouseTableName = keyof typeof ClickhouseTableNames;

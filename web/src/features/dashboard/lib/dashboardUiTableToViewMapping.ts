@@ -3,6 +3,7 @@ import type { z } from "zod";
 import { singleFilterList } from "@langfuse/shared";
 import {
   isNumericMetadataFilter,
+  unsupportedFilterReason,
   type ViewVersion,
   type views,
 } from "@langfuse/shared/query";
@@ -82,6 +83,14 @@ const viewFilterDefinitions: Record<
   ViewName,
   readonly DashboardViewFieldDefinition[]
 > = {
+  // The billing ledger only carries the type and environment of each unit.
+  "billable-units": [
+    defineField("unitType", sourceSpec("Unit type", { uiTableId: "unitType" })),
+    defineField(
+      "environment",
+      sourceSpec("Environment", { uiTableId: "environment" }),
+    ),
+  ],
   traces: [
     defineField("name", sourceSpec("Trace Name", { uiTableId: "traceName" })),
     // observationName intentionally omitted: traces:observations is 1:n and traceView has no
@@ -442,9 +451,11 @@ type PartitionedWidgetFilters = {
 /**
  * partitionUiTableFiltersToView splits filters into the ones the view can
  * query, with their column renamed to the view's dimension name, and the ones
- * it cannot. A filter is unsupported only if its column is a known widget
- * filter column of another view; unknown columns pass through so the server
- * validates them. `source` picks which column names win when both match:
+ * it cannot. A filter is unsupported if its column is a known widget filter
+ * column of another view, or if the view filters only by a fixed set of
+ * columns that does not include it (`unsupportedFilterReason`); other unknown
+ * columns pass through so the server validates them. `source` picks which
+ * column names win when both match:
  * legacy names for filters loaded from a saved widget, current names for
  * filters from the editor.
  */
@@ -478,7 +489,10 @@ const partitionUiTableFiltersToView = (
         return acc;
       }
 
-      if (isKnownWidgetFilterColumn(filter.column)) {
+      if (
+        isKnownWidgetFilterColumn(filter.column) ||
+        unsupportedFilterReason(view, [filter])
+      ) {
         acc.unsupportedFilters.push(filter);
         return acc;
       }

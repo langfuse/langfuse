@@ -24,6 +24,7 @@ export const queryViewToDashboardWidgetView = {
   "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
   "scores-boolean": DashboardWidgetViews.SCORES_BOOLEAN,
   "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
+  "billable-units": DashboardWidgetViews.BILLABLE_UNITS,
 } as const satisfies Record<z.infer<typeof views>, DashboardWidgetViews>;
 
 export const BaseTimeSeriesChartConfig = z.object({});

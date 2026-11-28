@@ -96,12 +96,17 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
                   filterType: "datetime" as const,
                   operators: filterOperators.datetime,
                 },
-                {
-                  column: "metadata",
-                  filterType: "stringObject" as const,
-                  operators: filterOperators.stringObject,
-                  requiresKey: true as const,
-                },
+                // The billing ledger has no metadata.
+                ...(viewName === "billable-units"
+                  ? []
+                  : [
+                      {
+                        column: "metadata",
+                        filterType: "stringObject" as const,
+                        operators: filterOperators.stringObject,
+                        requiresKey: true as const,
+                      },
+                    ]),
               ];
               const orderByFields = Object.keys(view.dimensions)
                 .concat(

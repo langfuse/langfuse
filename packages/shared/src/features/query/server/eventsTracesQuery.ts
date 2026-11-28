@@ -18,6 +18,7 @@ import {
   literal,
   toNullable,
   useFinal,
+  utcDateTime,
 } from "../../../server/query-ast/extensions";
 import { lowerEventsFieldCondition } from "../../../server/repositories/events-predicate";
 import {
@@ -40,7 +41,6 @@ import {
   type TimeBucketOf,
   type TimeWindow,
   HOUR_MS,
-  utcDateTime,
   assertKnownRelationTables,
   atLevel,
   applyBucketingDimension,

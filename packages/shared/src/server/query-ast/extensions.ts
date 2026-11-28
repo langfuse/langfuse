@@ -65,6 +65,7 @@ import {
 import { FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS } from "../utils/searchText";
 import { escapeSqlLikePattern } from "../utils/sqlLike";
 import { QueryCompileError } from "./errors";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { describeRelation } from "./relations";
 import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
@@ -368,6 +369,18 @@ function aggregate<T>(
 export function typedValue<T>(value: unknown, type: string): ChExpression<T> {
   return new ExpressionWrapper(ValueNode.create(new TypedParam(value, type)));
 }
+
+/**
+ * A `Date` bound as `{p:DateTime64(3, 'UTC')}` with its UTC wall-clock
+ * string, as the string builder binds time bounds; ClickHouse compares it
+ * exactly against the `DateTime64(6)` / `DateTime64(3)` columns, and against
+ * the ledger's `DateTime('UTC')` `ingested_at` with its milliseconds kept.
+ */
+export const utcDateTime = (date: Date): ChExpression<Date> =>
+  typedValue<Date>(
+    convertDateToClickhouseDateTime(date),
+    "DateTime64(3, 'UTC')",
+  );
 
 /**
  * A constant inlined into the SQL text rather than bound, so code-defined

@@ -158,4 +158,24 @@ describe("isValidQuery", () => {
       expect(result.reason).toContain("unique");
     }
   });
+
+  it("rejects a billable-units filter on a column the billing ledger does not have", () => {
+    const result = isValidQuery({
+      view: "billable-units",
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "tenant",
+          operator: "=",
+          value: "acme",
+        },
+      ],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toContain("can't be filtered by 'metadata'");
+    }
+  });
 });
