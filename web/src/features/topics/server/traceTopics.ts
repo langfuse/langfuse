@@ -36,9 +36,11 @@ export async function topicFilterOptions(projectId: string) {
             ...(qualifier ? { qualifier } : {}),
           }));
         });
-      const nameById = new Map(
-        facetTopics.map((topic) => [topic.id, topic.name]),
-      );
+      // Match buildTopicFilterOptions' first-wins deduplication by topic ID.
+      const nameById = new Map<string, string>();
+      for (const topic of facetTopics) {
+        if (!nameById.has(topic.id)) nameById.set(topic.id, topic.name);
+      }
       const options = buildTopicFilterOptions(facetTopics).map((option) => ({
         ...option,
         name: nameById.get(option.value) ?? option.displayValue,

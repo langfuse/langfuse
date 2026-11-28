@@ -197,14 +197,9 @@ export function toggleStripeTopic(
     // Adding a topic preserves all existing entries (including legacy names) as-is.
     nextValues = [...rawValues, topic];
   } else {
-    const clickedTopic = topics.find((item) => item.topicId === topic);
-    const sameNameSiblingIds = clickedTopic
-      ? topics
-          .filter(
-            (item) => item.name === clickedTopic.name && item.topicId !== topic,
-          )
-          .map((item) => item.topicId)
-      : [];
+    const clickedNames = new Set(
+      topics.filter((item) => item.topicId === topic).map((item) => item.name),
+    );
     const seen = new Set<string>();
     const add = (value: string) => {
       if (seen.has(value)) return;
@@ -214,8 +209,10 @@ export function toggleStripeTopic(
     nextValues = [];
     for (const entry of rawValues) {
       if (entry === topic) continue;
-      if (clickedTopic && entry === clickedTopic.name) {
-        for (const siblingId of sameNameSiblingIds) add(siblingId);
+      if (clickedNames.has(entry)) {
+        for (const item of topics) {
+          if (item.name === entry && item.topicId !== topic) add(item.topicId);
+        }
         continue;
       }
       add(entry);

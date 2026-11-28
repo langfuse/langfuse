@@ -348,5 +348,26 @@ describe("toggleStripeTopic", () => {
         value: ["Support"],
       },
     ]);
+
+    // When two maps give the same stable topic ID different names, either legacy name highlights and toggles off.
+    const crossMapTopics = [
+      { topicId: "t-shared", name: "Billing" },
+      { topicId: "t-shared", name: "Invoices" },
+    ];
+    const legacyStripeName: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Invoices"],
+      },
+    ];
+    expect(
+      selectedStripeTopics(legacyStripeName, "Intent", crossMapTopics),
+    ).toEqual(new Set(["t-shared"]));
+    expect(
+      toggleStripeTopic(legacyStripeName, "Intent", "t-shared", crossMapTopics),
+    ).toEqual([]);
   });
 });
