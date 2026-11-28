@@ -1,32 +1,40 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "@langfuse/icons";
+import { useStore } from "zustand";
 
-import { TestRunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRunButton/TestRunButton";
-import { EvaluatorTestResult } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestResult/EvaluatorTestResult";
+import {
+  EvaluatorTestStripView,
+  type TestResultSize,
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestStrip/EvaluatorTestStripView";
 import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
 import { useEvaluatorTestAvailability } from "@/src/features/evals/v2/hooks/useEvaluatorTestAvailability";
 import {
   selectHasValidModel,
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import { useStore } from "zustand";
 
-/**
- * Bottom test row for the trace-detail sample view. The collapsed row keeps
- * Run test. The expanded result has no card border.
- */
+/** Connects the test strip to the setup store and the test availability check. */
 export function EvaluatorTestStrip({
   projectId,
   store,
   testResult,
   testPending,
+  resultSize,
+  onResultSizeChange,
+  rawResultOpen,
+  onRawResultOpenChange,
   onRunTest,
+  onOpenExecutionTrace,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
   testResult: unknown;
   testPending: boolean;
+  resultSize: TestResultSize | null;
+  onResultSizeChange: (size: TestResultSize | null) => void;
+  rawResultOpen: boolean;
+  onRawResultOpenChange: (open: boolean) => void;
   onRunTest: () => void;
+  onOpenExecutionTrace: (traceId: string) => void;
 }) {
   const type = useStore(store, (state) => state.type);
   const hasValidModel = useStore(store, selectHasValidModel);
@@ -36,45 +44,40 @@ export function EvaluatorTestStrip({
     hasValidModel,
   });
   const [open, setOpen] = useState(false);
-
-  const panelState = toTestResultPanelState({
-    type,
-    isPending: testPending,
-    result: testResult,
-  });
-  const showResult = open && panelState.status !== "empty";
+  const executionTraceId =
+    testResult &&
+    typeof testResult === "object" &&
+    "executionTraceId" in testResult &&
+    typeof testResult.executionTraceId === "string"
+      ? testResult.executionTraceId
+      : null;
 
   return (
-    <div className="flex min-h-0 flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-3 px-6">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-sm"
-          aria-expanded={showResult}
-          onClick={() => setOpen((current) => !current)}
-        >
-          {showResult ? (
-            <ChevronDown size="sm" color="default" />
-          ) : (
-            <ChevronRight size="sm" color="default" />
-          )}
-          Test
-        </button>
-        <TestRunButton
-          isPending={testPending}
-          disabledReason={disabledReason}
-          onRun={() => {
-            setOpen(true);
-            onRunTest();
-          }}
-          label="Run test"
-          variant="default"
-          showIcon={false}
-        />
-      </div>
-      {showResult ? (
-        <EvaluatorTestResult state={panelState} testResult={testResult} />
-      ) : null}
-    </div>
+    <EvaluatorTestStripView
+      open={open}
+      onOpenChange={setOpen}
+      resultSize={resultSize}
+      onResultSizeChange={onResultSizeChange}
+      state={toTestResultPanelState({
+        type,
+        // A re-run keeps the previous result on screen until the new one lands.
+        isPending: testPending && !testResult,
+        result: testResult,
+      })}
+      testResult={testResult}
+      isPending={testPending}
+      disabledReason={disabledReason}
+      onRunTest={() => {
+        setOpen(true);
+        onRunTest();
+      }}
+      rawOpen={rawResultOpen}
+      onRawOpenChange={(checked) => {
+        setOpen(true);
+        onRawResultOpenChange(checked);
+      }}
+      executionTraceId={executionTraceId}
+      onOpenExecutionTrace={onOpenExecutionTrace}
+    />
   );
 }

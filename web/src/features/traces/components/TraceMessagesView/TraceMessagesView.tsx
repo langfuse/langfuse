@@ -23,6 +23,8 @@ import { useSessionConversationTimelineController } from "@/src/features/session
 import { getSessionTranscriptThreads } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/getSessionTranscriptThreads";
 import { ConnectedSessionMessagesView } from "../ConnectedSessionMessagesView/ConnectedSessionMessagesView";
 import { SessionTraceNavigationBar } from "./components/SessionTraceNavigationBar/SessionTraceNavigationBar";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
+import { cn } from "@/src/utils/tailwind";
 
 export function TraceMessagesView({
   onOpenObservation,
@@ -51,6 +53,7 @@ function SingleTraceMessagesView({
   const { selectNode } = useSelection();
   const [, setTraceView] = useQueryParam("traceView", StringParam);
   const router = useRouter();
+  const { presentation, isEmbedded } = useTracePresentation();
   const { messageTrace, sessionNavigation } = useTraceMessagesNavigation();
   const { data, state } = useTraceMessagesTranscript(
     {
@@ -99,7 +102,8 @@ function SingleTraceMessagesView({
       }
     >
       <div className="flex h-full min-h-0 w-full flex-col">
-        {sessionNavigation ? (
+        {/* An embed has its own way to step through traces. */}
+        {sessionNavigation && !isEmbedded ? (
           <SessionTraceNavigationBar
             position={sessionNavigation.position}
             total={sessionNavigation.total}
@@ -120,7 +124,13 @@ function SingleTraceMessagesView({
             nextShallow={sessionNavigation.next?.shallow}
           />
         ) : null}
-        <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col gap-3",
+            // An embedded transcript keeps side padding and a little room on top.
+            presentation === "messages" ? "px-3 pt-2" : "p-4",
+          )}
+        >
           {state.type === "transcript" && hiddenThreadCount > 0 && (
             <HiddenThreadsDivider
               count={hiddenThreadCount}
@@ -180,3 +190,6 @@ function HiddenThreadsDivider({
     </div>
   );
 }
+
+/** Placeholder for a messages-only trace while it loads. */
+TraceMessagesView.Loading = SessionConversationTimeline.TraceLoading;

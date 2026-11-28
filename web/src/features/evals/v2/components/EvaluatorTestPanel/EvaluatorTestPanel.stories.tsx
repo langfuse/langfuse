@@ -77,6 +77,7 @@ export const PinnedLargeResult = meta.story({
     sampleSelector,
     testSection: (
       <EvaluatorTestResult
+        rawOpen={false}
         state={{
           status: "llm-success",
           score: "support_request",

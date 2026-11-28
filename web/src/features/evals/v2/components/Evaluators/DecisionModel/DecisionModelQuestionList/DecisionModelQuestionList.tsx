@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import {
   DECISION_MODEL_LIMITS,
   DecisionModelQuestionType,
@@ -167,11 +168,14 @@ export function DecisionModelQuestionList({
         />
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-1.5",
+          // Flush with the question cards, which sit after the drag handle.
+          questions.length > 0 && "pl-6",
+        )}
+      >
         <TextActionButton text="Add question" onClick={onAdd} />
-        <span className="text-muted-foreground inline-flex h-6 items-center text-xs leading-none">
-          One call; extra questions add only their own tokens.
-        </span>
       </div>
     </div>
   );

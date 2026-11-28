@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "@langfuse/icons";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { TopicsTargetObject } from "@langfuse/shared";
 import { StringParam, useQueryParam } from "use-query-params";
 
 import { Callout } from "@/src/components/design-system/Callout/Callout";
-import { Button } from "@/src/components/ui/button";
 import { useTraceSampleTranscript } from "@/src/features/evals/v2/hooks/useEvaluatorTraceSample";
 import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
@@ -13,13 +18,54 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailP
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { TracePresentationProvider } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 const SAMPLE_LIST_KEY = "evaluator-samples";
 
-/** One sample in the trace view, with its count and prev/next arrows above it. */
+function SampleHeader({
+  title,
+  count,
+  children,
+  nav,
+}: {
+  title: string;
+  count: string | null;
+  /** Texts after the title, on the title's baseline. */
+  children?: ReactNode;
+  /** Prev/next arrows, centred in the row. */
+  nav?: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-7 shrink-0 items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-baseline gap-2">
+        <h3
+          className="min-w-0 truncate text-base font-bold"
+          title={count ? `${title} ${count}` : title}
+        >
+          {title}
+          {count ? (
+            <span className="text-muted-foreground text-sm font-normal">
+              {" "}
+              {count}
+            </span>
+          ) : null}
+        </h3>
+        {children}
+      </div>
+      {nav}
+    </div>
+  );
+}
+
+const SAMPLE_CARD_CLASS_NAME =
+  "bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border";
+
+/** One sample in the trace view, under a title row with the match count and prev/next arrows. */
 export function EvaluatorSampleDetail({
   projectId,
   targetObject,
+  title,
+  count,
   observations,
   selectedObservationId,
   pending,
@@ -27,6 +73,8 @@ export function EvaluatorSampleDetail({
 }: {
   projectId: string;
   targetObject: RuleTargetObject;
+  title: string;
+  count: string | null;
   observations: SampleObservation[];
   selectedObservationId: string | null;
   pending: boolean;
@@ -46,6 +94,28 @@ export function EvaluatorSampleDetail({
     return () => setDetailPageList(SAMPLE_LIST_KEY, []);
   }, [entries, setDetailPageList]);
 
+  const selectedTraceId = selected ? (selected.traceId ?? selected.id) : null;
+  const selectableObservationIds = useMemo(
+    () =>
+      new Set(
+        observations
+          .filter(
+            (observation) =>
+              (observation.traceId ?? observation.id) === selectedTraceId,
+          )
+          .map((observation) => observation.id),
+      ),
+    [observations, selectedTraceId],
+  );
+  const selectObservation = useCallback(
+    (observationId: string) => {
+      const next = observations.find(
+        (observation) => observation.id === observationId,
+      );
+      if (next) onSelect(next);
+    },
+    [observations, onSelect],
+  );
   const [, setObservation] = useQueryParam("observation", StringParam);
   const intentRef = useRef<string | null>(null);
   const isTraceTarget = targetObject === TopicsTargetObject;
@@ -69,8 +139,31 @@ export function EvaluatorSampleDetail({
 
   if (!selected) {
     return (
-      <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center p-6 text-sm">
-        {pending ? "Loading samples…" : "No samples in this time range."}
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <SampleHeader title={title} count={count} />
+        <div className={SAMPLE_CARD_CLASS_NAME}>
+          {/* Loaded samples without a selection yet are about to get one. */}
+          {pending || observations.length > 0 ? (
+            <div className="min-h-0 flex-1">
+              <TracePresentationProvider
+                presentation={isTraceTarget ? "messages" : "observation"}
+              >
+                <TraceDetailBody
+                  trace={undefined}
+                  context="peek"
+                  header={{
+                    variant: "page",
+                    headerProps: { title: "Sample", itemType: "TRACE" },
+                  }}
+                />
+              </TracePresentationProvider>
+            </div>
+          ) : (
+            <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center p-6 text-sm">
+              No samples in this time range.
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -78,12 +171,10 @@ export function EvaluatorSampleDetail({
   const sampleTraceId = selected.traceId ?? selected.id;
   const view = isTraceTarget
     ? ({
-        label: "Sample trace",
         presentation: "messages",
         observationId: null,
       } as const)
     : ({
-        label: "Sample observation",
         presentation: "observation",
         observationId: selected.id,
       } as const);
@@ -92,28 +183,20 @@ export function EvaluatorSampleDetail({
     isTraceTarget &&
     transcript.hasNoMessages &&
     dismissedNoMessagesFor !== sampleTraceId;
+  const startTime = buildLocalIsoDatePresentation({
+    date: new Date(selected.startTime),
+  });
   const sampleNavigation = (
-    <div className="flex shrink-0 items-center gap-3 border-b px-3 py-2">
-      <div className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
-        <span
-          className="text-muted-foreground truncate text-xs"
-          title={view.label}
-        >
-          {view.label}
-        </span>
-        <span aria-hidden className="text-muted-foreground text-xs">
-          ·
-        </span>
-        <span className="shrink-0 text-sm font-medium tabular-nums">
-          {sampleIndex + 1} of {observations.length}
-        </span>
-      </div>
-      <div className="shrink-0">
-        {observations.length > 1 ? (
+    <SampleHeader
+      title={title}
+      count={count}
+      nav={
+        observations.length > 1 ? (
           <DetailPageNav
             currentId={selected.id}
             listKey={SAMPLE_LIST_KEY}
             orientation="horizontal"
+            compact
             path={() => ""}
             onNavigate={(entry) => {
               const next = observations.find(
@@ -122,33 +205,28 @@ export function EvaluatorSampleDetail({
               if (next) onSelect(next);
             }}
           />
-        ) : (
-          <div className="flex flex-row gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="Previous sample"
-              disabled
-            >
-              <ChevronLeft size="base" color="default" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="Next sample"
-              disabled
-            >
-              <ChevronRight size="base" color="default" />
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
+        ) : null
+      }
+    >
+      {/* In a tight row the trace name gives way before the title. */}
+      <span
+        className="ph-no-capture text-muted-foreground ml-auto max-w-48 min-w-0 shrink-100 truncate font-mono text-xs"
+        title={traceName}
+      >
+        {traceName}
+      </span>
+      <span
+        className="text-muted-foreground font-mono text-xs whitespace-nowrap"
+        title={startTime?.title}
+      >
+        {startTime?.display}
+      </span>
+    </SampleHeader>
   );
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col"
+      className="flex min-h-0 flex-1 flex-col gap-2"
       ref={(element) => {
         if (!element || intentRef.current === viewIntent) return;
         intentRef.current = viewIntent;
@@ -156,41 +234,47 @@ export function EvaluatorSampleDetail({
       }}
     >
       {sampleNavigation}
-      {showNoMessages ? (
-        <div className="shrink-0 px-3 pt-2">
-          <Callout
-            variant="warning"
-            align="top"
-            actions={[]}
-            onDismiss={() => setDismissedNoMessagesFor(sampleTraceId)}
+      <div className={SAMPLE_CARD_CLASS_NAME}>
+        {showNoMessages ? (
+          <div className="shrink-0 px-3 pt-2">
+            <Callout
+              variant="warning"
+              align="top"
+              actions={[]}
+              onDismiss={() => setDismissedNoMessagesFor(sampleTraceId)}
+            >
+              <p>
+                This trace has no messages to evaluate. Messages are probably
+                missing from your instrumentation. Try another trace.
+              </p>
+            </Callout>
+          </div>
+        ) : null}
+        <div className="min-h-0 flex-1">
+          <TracePresentationProvider
+            presentation={view.presentation}
+            preferredObservationId={view.observationId}
+            selectableObservationIds={
+              isTraceTarget ? null : selectableObservationIds
+            }
+            onSelectObservation={isTraceTarget ? null : selectObservation}
           >
-            <p>
-              This trace has no messages to evaluate. Messages are probably
-              missing from your instrumentation. Try another trace.
-            </p>
-          </Callout>
+            <TraceDetailBody
+              trace={detail.data}
+              context="peek"
+              truncatedAtObservations={detail.truncatedAtObservations}
+              isPlaceholderData={detail.isPlaceholderData}
+              keySuffix={sampleTraceId}
+              header={{
+                variant: "page",
+                headerProps: {
+                  title: traceName,
+                  itemType: "TRACE",
+                },
+              }}
+            />
+          </TracePresentationProvider>
         </div>
-      ) : null}
-      <div className="min-h-0 flex-1">
-        <TracePresentationProvider
-          presentation={view.presentation}
-          preferredObservationId={view.observationId}
-        >
-          <TraceDetailBody
-            trace={detail.data}
-            context="peek"
-            truncatedAtObservations={detail.truncatedAtObservations}
-            isPlaceholderData={detail.isPlaceholderData}
-            keySuffix={sampleTraceId}
-            header={{
-              variant: "page",
-              headerProps: {
-                title: traceName,
-                itemType: "TRACE",
-              },
-            }}
-          />
-        </TracePresentationProvider>
       </div>
     </div>
   );

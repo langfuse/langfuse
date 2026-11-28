@@ -29,6 +29,30 @@ import {
  * This composition pattern allows each component to have a single responsibility.
  */
 
+/** Rows the embedder does not let the user pick. */
+const UNPICKABLE_ROW_CLASS_NAME = "opacity-50";
+
+/** The other rows that match are a step lighter than the sample row. */
+function evaluationSurfaceClassName({
+  isSample,
+  isMatch,
+}: {
+  isSample: boolean;
+  isMatch: boolean;
+}) {
+  if (isSample) return "bg-light-blue text-foreground";
+  if (isMatch) return "bg-light-blue/50 text-foreground";
+  return undefined;
+}
+
+function isEmbeddedObservation(node: TreeNode, observationId: string | null) {
+  return (
+    observationId != null &&
+    node.type !== "TRACE" &&
+    (node.observationId ?? node.id) === observationId
+  );
+}
+
 export function TraceTree({ isLoading = false }: { isLoading?: boolean }) {
   if (isLoading) return <TraceTreeLoading />;
   return <LoadedTraceTree />;
@@ -82,6 +106,10 @@ function LoadedTraceTree() {
   } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
+  const { presentation, selectableObservationIds, onSelectObservation } =
+    useTracePresentation();
+  const picksObservation =
+    presentation === "observation" && selectableObservationIds != null;
   const scope = traceScope.type;
   const previousScope = useRef(scope);
   const selectedTreeNodeId = resolveTreeNodeId(
@@ -117,13 +145,27 @@ function LoadedTraceTree() {
       isScrollReady={isNavigationReady}
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
+      paddingStart={presentation === "observation" ? 0 : undefined}
       renderNode={({ node, ...row }) => {
         const typedNode = node as TreeNode;
+        const observationId = typedNode.observationId ?? typedNode.id;
+        const isPickable =
+          picksObservation &&
+          typedNode.type !== "TRACE" &&
+          selectableObservationIds.has(observationId);
+        const browse = selectionLocked ? undefined : row.onSelect;
+        // Every row opens in the details pane; a match also becomes the sample.
+        const pick = () => {
+          row.onSelect();
+          if (isPickable) onSelectObservation?.(observationId);
+        };
         return (
           <TraceTreeRow
             {...row}
-            onSelect={selectionLocked ? undefined : row.onSelect}
+            onSelect={picksObservation ? pick : browse}
             node={typedNode}
+            isDimmed={picksObservation && !isPickable}
+            isEvaluationMatch={isPickable}
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
             onHover={() => handleHover(typedNode)}
@@ -145,6 +187,8 @@ function TraceTreeRow({
   emphasis,
   commentCount,
   onHover,
+  isDimmed,
+  isEvaluationMatch,
 }: {
   node: TreeNode;
   treeMetadata: TreeNodeMetadata;
@@ -155,13 +199,12 @@ function TraceTreeRow({
   emphasis: MetricEmphasisContext | undefined;
   commentCount: number | undefined;
   onHover: () => void;
+  isDimmed: boolean;
+  isEvaluationMatch: boolean;
 }) {
   const { isEmbedded, preferredObservationId } = useTracePresentation();
   const isSelectedObservation =
-    isEmbedded &&
-    preferredObservationId != null &&
-    node.type !== "TRACE" &&
-    (node.observationId ?? node.id) === preferredObservationId;
+    isEmbedded && isEmbeddedObservation(node, preferredObservationId);
   return (
     <VirtualizedTreeNodeWrapper
       metadata={treeMetadata}
@@ -171,9 +214,11 @@ function TraceTreeRow({
       onToggleCollapse={onToggleCollapse}
       isSelected={isSelected}
       onSelect={onSelect}
-      surfaceClassName={
-        isSelectedObservation ? "bg-light-violet text-foreground" : undefined
-      }
+      surfaceClassName={evaluationSurfaceClassName({
+        isSample: isSelectedObservation,
+        isMatch: isEvaluationMatch,
+      })}
+      className={isDimmed ? UNPICKABLE_ROW_CLASS_NAME : undefined}
     >
       <SpanContent
         node={node}

@@ -20,6 +20,7 @@
 import { StringParam, useQueryParam } from "use-query-params";
 import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataProvider";
+import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { TraceTree } from "./TraceTree";
 import { TraceSearchList } from "./TraceSearchList";
 import { TraceTimeline } from "./TraceTimeline/TraceTimeline";
@@ -30,7 +31,10 @@ export function TracePanelNavigation() {
   const { searchQuery } = useSearch();
   const { isGraphViewAvailable, isLoading: isGraphLoading } =
     useTraceGraphData();
-  const [viewMode] = useQueryParam("view", StringParam);
+  const [viewParam] = useQueryParam("view", StringParam);
+  // Embeds have no view switch, so they show the tree whatever the URL says.
+  const { isEmbedded } = useTracePresentation();
+  const viewMode = isEmbedded ? null : viewParam;
 
   const hasQuery = searchQuery.trim().length > 0;
   const isTimelineView = viewMode === "timeline";

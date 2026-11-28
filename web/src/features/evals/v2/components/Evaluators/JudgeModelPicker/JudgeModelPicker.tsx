@@ -64,6 +64,15 @@ type ProjectDefaultJudgeModelPickerProps = JudgeModelPickerCommonProps & {
   hasModelConfiguration?: boolean;
 };
 
+/** On the model name's baseline; the negative margin keeps the row's height. */
+function ProjectDefaultBadge() {
+  return (
+    <span className="-my-1 flex shrink-0 self-baseline">
+      <Badge color="filled" text="Project default" />
+    </span>
+  );
+}
+
 export type JudgeModelPickerProps =
   | EvaluatorJudgeModelPickerProps
   | ProjectDefaultJudgeModelPickerProps
@@ -149,12 +158,12 @@ export const JudgeModelPickerTrigger = forwardRef<
             <span className="flex min-w-0 items-center gap-2">
               {connectionWarning}
               <span
-                className="truncate"
+                className="self-baseline truncate"
                 title={`${defaultModel.provider} / ${defaultModel.model}`}
               >
                 {defaultModel.provider} / {defaultModel.model}
               </span>
-              <Badge color="filled" text="Project default" />
+              <ProjectDefaultBadge />
             </span>
           ) : (
             <span className="flex items-center gap-1.5">
@@ -167,12 +176,13 @@ export const JudgeModelPickerTrigger = forwardRef<
         ) : (
           <span className="flex min-w-0 items-center gap-2">
             {connectionWarning}
-            <span className="truncate" title={customSelectionLabel}>
+            <span
+              className="self-baseline truncate"
+              title={customSelectionLabel}
+            >
               {customSelectionLabel}
             </span>
-            {customSelectionIsDefault ? (
-              <Badge color="filled" text="Project default" />
-            ) : null}
+            {customSelectionIsDefault ? <ProjectDefaultBadge /> : null}
           </span>
         )}
         {loading ? (

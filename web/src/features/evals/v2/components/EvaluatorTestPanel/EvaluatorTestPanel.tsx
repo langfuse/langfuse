@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { FlaskConical, PanelRightClose, PanelRightOpen } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
+import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorTestPanel({
   open,
@@ -10,6 +11,7 @@ export function EvaluatorTestPanel({
   testSection,
   heading,
   pinTestSection = false,
+  testSectionResized = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -19,18 +21,30 @@ export function EvaluatorTestPanel({
   heading?: ReactNode;
   /** Lets the sample fill the panel and keeps the test row at the bottom. */
   pinTestSection?: boolean;
+  /** Raises the pinned test row's height cap once the user made it taller. */
+  testSectionResized?: boolean;
 }) {
+  const title = heading ?? (
+    <div className="flex items-center gap-2">
+      <FlaskConical size="base" />
+      <h2 className="font-bold">Test with sample observations</h2>
+    </div>
+  );
+
   return (
-    <aside className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b px-6">
-        {open
-          ? (heading ?? (
-              <div className="flex items-center gap-2">
-                <FlaskConical size="base" />
-                <h2 className="font-bold">Test with sample observations</h2>
-              </div>
-            ))
-          : null}
+    <aside
+      className={cn(
+        "flex h-full min-h-0 flex-col overflow-hidden",
+        heading && "bg-surface-section",
+      )}
+    >
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-between gap-2",
+          heading ? "px-4 pt-3 pb-2" : "h-12 border-b px-6",
+        )}
+      >
+        {open ? title : null}
         <Button
           type="button"
           variant="ghost"
@@ -48,10 +62,15 @@ export function EvaluatorTestPanel({
       </div>
       {open && pinTestSection ? (
         <>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4">
             {sampleSelector}
           </div>
-          <div className="flex max-h-1/2 min-h-0 shrink-0 flex-col border-t">
+          <div
+            className={cn(
+              "flex min-h-0 shrink-0 flex-col border-t",
+              testSectionResized ? "max-h-3/5" : "max-h-1/2",
+            )}
+          >
             {testSection}
           </div>
         </>

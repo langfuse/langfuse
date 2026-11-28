@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useCallback, useMemo, useState, type UIEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type UIEvent } from "react";
 import {
   CircleAlert,
   Database,
@@ -25,7 +25,8 @@ import {
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
@@ -53,6 +54,8 @@ import {
   useSampleObservationFilterOptions,
 } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
 import { EvaluatorSampleDetail } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleDetail/EvaluatorSampleDetail";
+import { orderSamplesByTrace } from "@/src/features/evals/v2/fns/evaluatorTesting/orderSamplesByTrace";
+import { useEvaluatorTraceMatches } from "@/src/features/evals/v2/hooks/useEvaluatorTraceMatches";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import type { RuleTargetObject } from "@/src/features/evals/v2/types/rules";
@@ -62,6 +65,10 @@ export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
 
 const PAGE_SIZE = 25;
+/** Trace samples keep loading observation pages until this many traces show up. */
+const MIN_SAMPLE_TRACES = 5;
+const MAX_TRACE_SAMPLE_PAGES = 8;
+const NO_SAMPLES: SampleObservation[] = [];
 
 const EXAMPLES = [
   {
@@ -194,7 +201,7 @@ function matchingTraces(observations: SampleObservation[]) {
 
 function selectorLayoutClassName(showTraceDetail: boolean) {
   if (showTraceDetail) {
-    return "flex min-h-0 flex-1 flex-col overflow-hidden";
+    return "flex min-h-0 flex-1 flex-col gap-4 overflow-hidden";
   }
   return "flex shrink-0 flex-col gap-6";
 }
@@ -456,12 +463,104 @@ export function SampleObservationSelectorBase(
       : undefined;
   const querySettled =
     observationQuery.isSuccess && !observationQuery.isFetching;
-  const detailObservations = isTraceTarget
-    ? matchingTraces(matchingObservations)
-    : matchingObservations;
-  const detailSelectionToReconcile = querySettled
-    ? resolveSelection(detailObservations, selectedObservationId)
-    : undefined;
+  // Matches of traces already stepped through stay in the list, so stepping back retraces them.
+  const matchScope = JSON.stringify([
+    effectiveFilters,
+    searchQuery,
+    searchType,
+  ]);
+  const [visitedMatches, setVisitedMatches] = useState({
+    scope: matchScope,
+    samples: NO_SAMPLES,
+    pageLimit: MAX_TRACE_SAMPLE_PAGES,
+  });
+  const isCurrentScope = visitedMatches.scope === matchScope;
+  const keptMatches = isCurrentScope ? visitedMatches.samples : NO_SAMPLES;
+  // Pages may load unasked up to this many; each step by the user extends it, a new filter starts over.
+  const autoPageLimit = isCurrentScope
+    ? visitedMatches.pageLimit
+    : MAX_TRACE_SAMPLE_PAGES;
+  // A sample picked in the trace tree may sit outside the loaded pages.
+  const isSelected = (observation: SampleObservation) =>
+    observation.id === selectedObservationId;
+  const knownSample =
+    matchingObservations.find(isSelected) ?? keptMatches.find(isSelected);
+  // Without a known sample, the next one comes from the first loaded trace.
+  const sampleTraceId =
+    !isTraceTarget && showTraceDetail
+      ? (knownSample?.traceId ?? matchingObservations[0]?.traceId ?? null)
+      : null;
+  // Every match in the sample's trace, so each can be picked from the tree.
+  const sampleTrace = useEvaluatorTraceMatches({
+    projectId,
+    filter: effectiveFilters,
+    searchQuery,
+    searchType,
+    traceId: sampleTraceId,
+  });
+  // The next trace loads ahead, so stepping into it lands on its first match.
+  const nextTraceId = useMemo(() => {
+    if (sampleTraceId === null) return null;
+    const traceIds = [
+      ...new Set(
+        observationPages.flat().flatMap(({ traceId }) => traceId ?? []),
+      ),
+    ];
+    const index = traceIds.indexOf(sampleTraceId);
+    return index === -1 ? null : (traceIds[index + 1] ?? null);
+  }, [observationPages, sampleTraceId]);
+  const nextTrace = useEvaluatorTraceMatches({
+    projectId,
+    filter: effectiveFilters,
+    searchQuery,
+    searchType,
+    traceId: nextTraceId,
+  });
+  const traceMatches = useMemo(
+    () => [...sampleTrace.samples, ...nextTrace.samples],
+    [sampleTrace.samples, nextTrace.samples],
+  );
+  const detailObservations = useMemo(() => {
+    const loaded = observationPages.flat();
+    if (isTraceTarget) return matchingTraces(loaded);
+    if (!showTraceDetail) return loaded;
+    const seen = new Set(loaded.map((observation) => observation.id));
+    const extras = [...keptMatches, ...traceMatches].filter((observation) => {
+      if (seen.has(observation.id)) return false;
+      seen.add(observation.id);
+      return true;
+    });
+    return orderSamplesByTrace([...loaded, ...extras]);
+  }, [
+    isTraceTarget,
+    showTraceDetail,
+    observationPages,
+    keptMatches,
+    traceMatches,
+  ]);
+  // A first sample waits for every match of its trace, so none slots in ahead of it later.
+  const detailSelectionToReconcile =
+    querySettled && sampleTrace.isSettled
+      ? resolveSelection(detailObservations, selectedObservationId)
+      : undefined;
+  const loadedPageCount = observationQuery.data?.pages.length ?? 0;
+  const canAutoLoad =
+    showTraceDetail &&
+    querySettled &&
+    observationQuery.hasNextPage &&
+    loadedPageCount < autoPageLimit;
+  const needsMoreTraces =
+    isTraceTarget && detailObservations.length < MIN_SAMPLE_TRACES;
+  const selectedSampleIndex = detailObservations.findIndex(
+    (observation) => observation.id === selectedObservationId,
+  );
+  const isNearLastSample = selectedSampleIndex >= detailObservations.length - 2;
+  const needsNextPage = canAutoLoad && (needsMoreTraces || isNearLastSample);
+  const fetchNextObservationPage = observationQuery.fetchNextPage;
+  useEffect(() => {
+    if (!needsNextPage) return;
+    fetchNextObservationPage().catch(() => undefined);
+  }, [needsNextPage, loadedPageCount, fetchNextObservationPage]);
 
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -568,6 +667,7 @@ export function SampleObservationSelectorBase(
   const filterModeControl = (
     <EvaluatorFilterModeDropdown
       mode={filterMode}
+      size={showTraceDetail ? "sm" : "default"}
       onChange={(mode) => {
         if (mode === "builder" && searchQuery !== null) {
           search.applyFilters(filterState);
@@ -577,27 +677,55 @@ export function SampleObservationSelectorBase(
     />
   );
 
+  // The approximate observation count does not see a text search.
+  const observationCount = searchQuery ? null : options.approxTotalCount;
+  // Traces show no count.
+  const sampleCount = isTraceTarget ? null : observationCount;
+  const sampleCountLabel =
+    sampleCount !== null ? formatCount(sampleCount) : null;
+  const sampleTitle = isTraceTarget
+    ? "Matching traces"
+    : "Matching observations";
+  const presetButtons =
+    filterMode === "query"
+      ? examples.map((example) => {
+          const toggle = () => {
+            setFilters((current) =>
+              toggleExampleFilters(current, [...example.filters]),
+            );
+          };
+          return showTraceDetail ? (
+            <TextActionButton
+              key={example.label}
+              text={example.label}
+              icon={example.icon}
+              tone="muted"
+              onClick={toggle}
+            />
+          ) : (
+            <Button
+              key={example.label}
+              type="button"
+              variant="ghost"
+              icon={example.icon}
+              text={example.label}
+              onClick={toggle}
+            />
+          );
+        })
+      : null;
+
   return (
     <div className={selectorLayoutClassName(showTraceDetail)}>
       <section
+        aria-label={showTraceDetail ? filterTitle : undefined}
         className={
           showTraceDetail
-            ? "bg-secondary flex flex-col gap-1 px-4 py-2"
+            ? "bg-card flex shrink-0 flex-col gap-2 rounded-lg border px-2.5 py-2"
             : "flex flex-col gap-2"
         }
       >
-        {showTraceDetail ? (
-          <div className="flex items-center gap-2">
-            <SectionHeader
-              title="Filter"
-              meta={null}
-              description={null}
-              tooltip={filterTooltip}
-              trailing={null}
-            />
-            <div className="ml-auto shrink-0">{filterModeControl}</div>
-          </div>
-        ) : (
+        {showTraceDetail ? null : (
           <SectionHeader
             title={filterTitle}
             meta={null}
@@ -633,39 +761,24 @@ export function SampleObservationSelectorBase(
             queryOnlyColumnIds={queryOnlyColumnIds}
           />
         )}
-        {filterMode === "query" ? (
-          <div
-            className={
-              showTraceDetail ? "flex flex-wrap gap-1" : "flex flex-wrap gap-2"
-            }
-          >
-            {examples.map((example) => (
-              <Button
-                key={example.label}
-                type="button"
-                variant="outline"
-                size="sm"
-                className={
-                  showTraceDetail
-                    ? "gap-1"
-                    : "flex h-8 items-center gap-2 text-sm"
-                }
-                onClick={() => {
-                  setFilters((current) =>
-                    toggleExampleFilters(current, [...example.filters]),
-                  );
-                }}
-              >
-                <example.icon size="base" />
-                <span>{example.label}</span>
-              </Button>
-            ))}
+        {showTraceDetail && (
+          <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1">
+              {presetButtons}
+            </div>
+            <div className="ml-auto shrink-0">{filterModeControl}</div>
           </div>
-        ) : null}
+        )}
+        {!showTraceDetail && presetButtons && (
+          <div className="-ml-3 flex flex-wrap">{presetButtons}</div>
+        )}
       </section>
 
       {showTraceDetail && (
-        <div className="flex min-h-0 flex-1 flex-col border-t">
+        <section
+          aria-label={sampleTitle}
+          className="flex min-h-0 flex-1 flex-col"
+        >
           <div
             ref={
               detailSelectionToReconcile !== undefined
@@ -680,12 +793,25 @@ export function SampleObservationSelectorBase(
           <EvaluatorSampleDetail
             projectId={projectId}
             targetObject={targetObject}
+            title={sampleTitle}
+            count={sampleCountLabel}
             observations={detailObservations}
             selectedObservationId={selectedObservationId}
             pending={observationsPending}
-            onSelect={onSelect}
+            onSelect={(observation) => {
+              const keptIds = new Set(keptMatches.map(({ id }) => id));
+              setVisitedMatches({
+                scope: matchScope,
+                samples: [
+                  ...keptMatches,
+                  ...traceMatches.filter(({ id }) => !keptIds.has(id)),
+                ],
+                pageLimit: loadedPageCount + MAX_TRACE_SAMPLE_PAGES,
+              });
+              onSelect(observation);
+            }}
           />
-        </div>
+        </section>
       )}
       {!showTraceDetail && !isTraceTarget && (
         <section className="flex min-h-0 flex-col gap-2">

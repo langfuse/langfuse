@@ -1,16 +1,21 @@
-import { useId } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import {
   Gauge,
-  Info,
   ListChecks,
   ToggleLeft,
   type IconComponent,
 } from "@langfuse/icons";
 
-import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
-import { cn } from "@/src/utils/tailwind";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { useResizeObserver } from "@/src/hooks/useResizeObserver";
 
 export const QUESTION_TYPE_COPY: Record<
   DecisionModelQuestionType,
@@ -59,8 +64,9 @@ const ORDER: DecisionModelQuestionType[] = [
 ];
 
 /**
- * Picks the question type. All three primitives stay visible with their
- * descriptor so the model's vocabulary is learned where it is used.
+ * Picks the question type: tabs when they fit the width it is given, a
+ * dropdown otherwise. Each type is described to assistive technology with what
+ * it does, an example and when to use it.
  */
 export function QuestionTypeSelector({
   value,
@@ -73,73 +79,104 @@ export function QuestionTypeSelector({
 }) {
   const helpIdPrefix = useId();
 
-  return (
-    <div className="@container flex flex-col gap-1.5">
-      <div
-        role="radiogroup"
-        aria-label="Question type"
-        className="grid gap-2 @lg:grid-cols-3"
-      >
+  const slotRef = useRef<HTMLDivElement>(null);
+  const tabsMeasureRef = useRef<HTMLDivElement>(null);
+  const [tabsFit, setTabsFit] = useState(true);
+
+  const measure = useCallback(() => {
+    const slot = slotRef.current;
+    const tabsMeasure = tabsMeasureRef.current;
+    if (!slot || !tabsMeasure) return;
+
+    setTabsFit(
+      tabsMeasure.getBoundingClientRect().width <=
+        slot.getBoundingClientRect().width,
+    );
+  }, []);
+  // The first check runs before paint, so a slot too narrow never shows the tabs.
+  useLayoutEffect(measure, [measure]);
+  useResizeObserver(slotRef, measure);
+  // The tabs' own width changes without the slot resizing, e.g. when a font loads.
+  useResizeObserver(tabsMeasureRef, measure);
+
+  const tabs = (
+    <Tabs
+      activationMode="manual"
+      value={value}
+      onValueChange={(next) => onValueChange(next as DecisionModelQuestionType)}
+    >
+      <Tabs.List variant="inset" size="md" aria-label="Question type">
         {ORDER.map((type) => {
           const copy = QUESTION_TYPE_COPY[type];
-          const selected = type === value;
-          const helpId = `${helpIdPrefix}-${type}`;
-          const explanation = `Writes ${copy.writes}. ${copy.whenToUse}`;
           return (
-            <div
+            <Tabs.Trigger
               key={type}
-              className={cn(
-                "relative rounded-md border text-sm transition-colors",
-                "hover:bg-muted/50",
-                selected
-                  ? "border-primary-accent bg-primary-accent/5 ring-primary-accent ring-1"
-                  : "border-border",
-                disabled && "opacity-60",
-              )}
+              value={type}
+              disabled={disabled}
+              aria-describedby={`${helpIdPrefix}-${type}`}
             >
-              <button
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                aria-describedby={helpId}
-                disabled={disabled}
-                onClick={() => onValueChange(type)}
-                className={cn(
-                  "flex w-full flex-col gap-1 p-3 pr-10 text-left",
-                  "focus-visible:ring-ring rounded-md focus-visible:ring-2 focus-visible:outline-hidden",
-                  disabled && "cursor-not-allowed",
-                )}
-              >
-                <span className="flex items-center gap-1.5 font-bold">
-                  <copy.icon size="base" />
-                  {copy.label}
-                </span>
-                <span className="text-muted-foreground">{copy.summary}</span>
-                <span className="text-muted-foreground text-xs italic">
-                  e.g. “{copy.example}”
-                </span>
-              </button>
-              <div className="absolute top-2 right-1.5">
-                <Tooltip label={explanation}>
-                  {({ getTriggerProps }) => (
-                    <IconButton
-                      {...getTriggerProps()}
-                      icon={Info}
-                      label={`About ${copy.label}`}
-                      size="sm"
-                      variant="ghost"
-                      disabled={disabled}
-                    />
-                  )}
-                </Tooltip>
-              </div>
-              <span id={helpId} className="sr-only">
-                {explanation}
-              </span>
-            </div>
+              {copy.label}
+            </Tabs.Trigger>
           );
         })}
+      </Tabs.List>
+    </Tabs>
+  );
+
+  return (
+    <div ref={slotRef} className="flex min-w-0 flex-1">
+      {tabsFit ? (
+        tabs
+      ) : (
+        <div className="w-52 max-w-full @max-sm/fields:w-full">
+          <Select
+            value={value}
+            onValueChange={(next) =>
+              onValueChange(next as DecisionModelQuestionType)
+            }
+            disabled={disabled}
+          >
+            <SelectTrigger
+              aria-label="Question type"
+              aria-describedby={`${helpIdPrefix}-${value}`}
+            >
+              <SelectValue>{QUESTION_TYPE_COPY[value].label}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {ORDER.map((type) => (
+                <SelectItem
+                  key={type}
+                  value={type}
+                  aria-describedby={`${helpIdPrefix}-${type}`}
+                >
+                  {QUESTION_TYPE_COPY[type].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {/*
+        An unseen copy of the tabs stays mounted to read their natural width.
+        It follows the control, so the row's baseline is the visible label's.
+      */}
+      <div
+        aria-hidden="true"
+        inert
+        className="invisible size-0 overflow-hidden"
+      >
+        <div ref={tabsMeasureRef} className="w-max">
+          {tabs}
+        </div>
       </div>
+      {ORDER.map((type) => {
+        const copy = QUESTION_TYPE_COPY[type];
+        return (
+          <span key={type} id={`${helpIdPrefix}-${type}`} className="sr-only">
+            {`${copy.summary} e.g. “${copy.example}” Writes ${copy.writes}. ${copy.whenToUse}`}
+          </span>
+        );
+      })}
     </div>
   );
 }

@@ -118,6 +118,7 @@ type EntityDetailHeaderTitleProps = Pick<
   "title" | "itemType" | "titleTabs" | "titleTooltip" | "titleBadges"
 > & {
   titleLevel?: React.ComponentProps<typeof EntityTitle>["level"];
+  titleSize?: React.ComponentProps<typeof EntityTitle>["size"];
 };
 
 export type EntityDetailHeaderProps = EntityDetailHeaderTitleProps & {
@@ -267,6 +268,7 @@ function EntityDetailHeaderChrome({
     titleTooltip,
     titleBadges,
     titleLevel,
+    titleSize,
     actions = [],
   } = headerProps;
   const [isMenuOpen, setMenuOpen] = useState(false);
@@ -514,10 +516,11 @@ function EntityDetailHeaderChrome({
             type={titleTabs ? undefined : itemType}
             title={title}
             level={titleLevel}
+            size={titleSize}
             tooltip={titleTooltip}
+            badges={titleBadges}
             isFocusable
           />
-          {titleBadges}
         </div>
         <div
           ref={clusterRef}

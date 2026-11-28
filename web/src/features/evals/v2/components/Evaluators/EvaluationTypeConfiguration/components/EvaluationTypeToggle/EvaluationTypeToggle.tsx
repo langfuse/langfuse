@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { BaselineStrut } from "@/src/features/evals/v2/components/Evaluators/FieldRow/BaselineStrut";
 import { getEvaluatorMethodIcon } from "@/src/features/evals/v2/fns/templateGallery/evaluatorMethodPresentation";
 import { useResizeObserver } from "@/src/hooks/useResizeObserver";
 
@@ -96,7 +97,8 @@ export function EvaluationTypeToggle({
   );
 
   return (
-    <div ref={slotRef} className="flex min-w-0 flex-1">
+    <div ref={slotRef} className="flex min-w-0 flex-1 items-center">
+      <BaselineStrut type={tabsFit ? "tab" : "text"} />
       {/* An unseen copy of the tabs stays mounted to read their natural width. */}
       <div
         aria-hidden="true"

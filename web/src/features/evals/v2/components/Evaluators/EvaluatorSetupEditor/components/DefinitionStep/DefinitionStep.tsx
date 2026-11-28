@@ -2,6 +2,7 @@ import type { EvalTemplateType } from "@langfuse/shared";
 import type { ReactNode } from "react";
 
 import { EvaluationTypeToggle } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/components/EvaluationTypeToggle/EvaluationTypeToggle";
+import { BaselineStrut } from "@/src/features/evals/v2/components/Evaluators/FieldRow/BaselineStrut";
 import { FieldRow } from "@/src/features/evals/v2/components/Evaluators/FieldRow/FieldRow";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 
@@ -35,7 +36,7 @@ function DefinitionStepBody(props: DefinitionStepContent) {
     case "LLM_AS_JUDGE":
       return (
         <>
-          <FieldRow label="Prompt" align="start">
+          <FieldRow label="Prompt" align="baseline">
             {props.promptEditor}
           </FieldRow>
           {props.scoreOutputEditor}
@@ -57,11 +58,18 @@ export function DefinitionStep(props: DefinitionStepProps) {
       open={props.open}
       onOpenChange={props.onOpenChange}
       headerEnd={
-        <EvaluationTypeToggle
-          value={props.type}
-          onValueChange={props.onTypeChange}
-          disabled={props.isEditing}
-        />
+        <div className="flex min-w-0 flex-1 items-baseline">
+          {/* Set like the step title: puts the picker's labels on the title's baseline. */}
+          <BaselineStrut type="stepTitle" />
+          {/* The margins keep the picker from making that line taller. */}
+          <div className="-mt-1.5 -mb-2 flex min-w-0 flex-1">
+            <EvaluationTypeToggle
+              value={props.type}
+              onValueChange={props.onTypeChange}
+              disabled={props.isEditing}
+            />
+          </div>
+        </div>
       }
     >
       <div className="flex flex-col gap-2 pt-3">

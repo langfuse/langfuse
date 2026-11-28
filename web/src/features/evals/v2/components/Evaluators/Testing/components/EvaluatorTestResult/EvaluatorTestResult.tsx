@@ -1,23 +1,22 @@
-import { Fragment } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
-import { Tag } from "@/src/components/design-system/Tag/Tag";
+import { Banner } from "@/src/components/design-system/Banner/Banner";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { useResizeObserver } from "@/src/hooks/useResizeObserver";
+import { cn } from "@/src/utils/tailwind";
 import type { TestResultPanelState } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
 
-function readVariables(result: unknown) {
-  if (!result || typeof result !== "object" || !("variables" in result)) {
-    return [];
-  }
-  const variables = (result as { variables?: unknown }).variables;
-  if (!Array.isArray(variables)) return [];
-  return variables.flatMap((item) => {
-    if (!item || typeof item !== "object" || !("var" in item)) return [];
-    const variable = item as { var: unknown; value?: unknown };
-    return [{ name: String(variable.var), value: variable.value }];
-  });
-}
+const containerClassName =
+  "ph-no-capture min-h-0 overflow-y-auto px-6 pt-1 pb-3";
 
-function scoreText(state: TestResultPanelState) {
+/** A run that has ended; the run button carries the pending state on its own. */
+type FinishedTestState = Exclude<
+  TestResultPanelState,
+  { status: "empty" | "running" }
+>;
+
+function scoreText(state: FinishedTestState) {
   if (state.status === "llm-success") return state.score;
   if (state.status === "code-success") {
     return state.scores.map((score) => score.value).join(", ");
@@ -31,11 +30,10 @@ function scoreText(state: TestResultPanelState) {
       })
       .join(", ");
   }
-  if (state.status === "running") return "…";
   return "";
 }
 
-function reasoningText(state: TestResultPanelState) {
+function reasoningText(state: FinishedTestState) {
   if (state.status === "llm-success") return state.reasoning;
   if (state.status === "code-success") {
     const comments = state.scores
@@ -43,61 +41,126 @@ function reasoningText(state: TestResultPanelState) {
       .filter((comment): comment is string => Boolean(comment));
     return comments.length > 0 ? comments.join("\n") : null;
   }
-  if (state.status === "request-error" || state.status === "run-error") {
-    return state.message;
-  }
   return null;
 }
 
-/** Scrolls as one area; the parent must bound its height. */
+/** Model reasoning, held to three lines. Show more appears only while lines are cut off. */
+function Reasoning({
+  text,
+  open,
+  onOpenChange,
+  full,
+}: {
+  text: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Shows all of it, without Show more. */
+  full: boolean;
+}) {
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [isCutOff, setIsCutOff] = useState(false);
+  const isClamped = !open && !full;
+
+  const measure = useCallback(() => {
+    const element = textRef.current;
+    // Only the clamped text can tell whether it overflows.
+    if (!element || !isClamped) return;
+    setIsCutOff(element.scrollHeight > element.clientHeight);
+  }, [isClamped]);
+  useLayoutEffect(measure, [measure, text]);
+  useResizeObserver(textRef, measure);
+
+  return (
+    <div className="min-w-0">
+      <p className="text-muted-foreground text-xs">Model reasoning</p>
+      <p
+        ref={textRef}
+        className={cn(
+          "mt-2 text-sm whitespace-pre-wrap",
+          isClamped && "line-clamp-3",
+        )}
+      >
+        {text}
+      </p>
+      {!full && (isCutOff || open) ? (
+        <div className="mt-1">
+          <ExpandToggle expanded={open} onExpandedChange={onOpenChange} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** The outcome of one test run. Scrolls as one area; the parent must bound its height. */
 export function EvaluatorTestResult({
   state,
   testResult,
+  rawOpen,
+  fullReasoning = false,
 }: {
-  state: TestResultPanelState;
+  state: FinishedTestState;
   testResult: unknown;
+  /** Shows the whole response as JSON instead of the summary. */
+  rawOpen: boolean;
+  /** Shows the whole reasoning without Show more, for a parent that gave it extra height. */
+  fullReasoning?: boolean;
 }) {
-  const variables = readVariables(testResult);
-  const score = scoreText(state);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
+
+  if (rawOpen && testResult != null) {
+    return (
+      <div className={containerClassName}>
+        <PrettyJsonView
+          json={testResult}
+          currentView="json"
+          showNullValues
+          stickyTopLevelKey={false}
+          showObservationTypeBadge={false}
+        />
+      </div>
+    );
+  }
+
+  if (state.status === "request-error") {
+    return (
+      <div className={containerClassName}>
+        <p className="text-destructive text-sm">{state.message}</p>
+      </div>
+    );
+  }
+  if (state.status === "run-error") {
+    return (
+      <div className={containerClassName}>
+        <Banner variant="error" title="Test run failed">
+          {state.message}
+        </Banner>
+      </div>
+    );
+  }
+
   const reasoning = reasoningText(state);
 
   return (
-    <div className="ph-no-capture flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-1 pb-3">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="min-w-0">
-          <p className="text-muted-foreground text-xs">Score</p>
-          <p className="mt-2 text-2xl font-bold break-words">{score || "—"}</p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-muted-foreground text-xs">Model reasoning</p>
-          <p className="mt-2 text-sm whitespace-pre-wrap">{reasoning || "—"}</p>
-        </div>
+    <div
+      className={cn(
+        containerClassName,
+        "grid grid-cols-[auto_minmax(0,1fr)] gap-8",
+      )}
+    >
+      <div className="min-w-20">
+        <p className="text-muted-foreground text-xs">Score</p>
+        <p className="mt-2 text-lg font-bold break-words">
+          {scoreText(state) || "—"}
+        </p>
       </div>
-      <div className="min-w-0">
-        <p className="text-muted-foreground text-xs">Variables</p>
-        {variables.length > 0 ? (
-          <dl className="mt-2 grid grid-cols-[fit-content(40%)_minmax(0,1fr)] gap-x-4 gap-y-3">
-            {variables.map((variable) => (
-              <Fragment key={variable.name}>
-                <dt className="min-w-0">
-                  <Tag text={`{{${variable.name}}}`} />
-                </dt>
-                <dd className="min-w-0">
-                  <PrettyJsonView
-                    json={variable.value}
-                    currentView="pretty"
-                    borderless
-                  />
-                </dd>
-              </Fragment>
-            ))}
-          </dl>
-        ) : (
-          <p className="text-muted-foreground mt-2 text-sm">
-            {state.status === "running" ? "Running…" : "No variable result."}
-          </p>
-        )}
-      </div>
+      {reasoning ? (
+        <Reasoning
+          text={reasoning}
+          open={reasoningOpen}
+          onOpenChange={setReasoningOpen}
+          full={fullReasoning}
+        />
+      ) : null}
     </div>
   );
 }

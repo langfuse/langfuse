@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { TopicsTargetObject } from "@langfuse/shared";
 import { useStore } from "zustand";
 
@@ -6,6 +6,7 @@ import { useCanViewTraceTranscriptsEvals } from "@/src/features/evals/transcript
 import { EvaluatorTestPanel } from "@/src/features/evals/v2/components/EvaluatorTestPanel/EvaluatorTestPanel";
 import { TestSectionContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestSectionContainer/TestSectionContainer";
 import { EvaluatorTestStrip } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestStrip/EvaluatorTestStrip";
+import type { TestResultSize } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorTestStrip/EvaluatorTestStripView";
 import {
   selectHasValidModel,
   type EvaluatorSetupStore,
@@ -45,6 +46,9 @@ export function EvaluatorTestPanelContainer({
     (state) => state.targetObject === TopicsTargetObject,
   );
   const actions = store.getState().actions;
+  const [testResultSize, setTestResultSize] = useState<TestResultSize | null>(
+    null,
+  );
 
   if (!traceEvalsAvailable) {
     return (
@@ -74,6 +78,7 @@ export function EvaluatorTestPanelContainer({
       open={open}
       onOpenChange={actions.setTestPanelOpen}
       pinTestSection
+      testSectionResized={testResultSize !== null}
       heading={heading}
       sampleSelector={isTraceTarget ? traceSampleSelector : sampleSelector}
       testSection={
@@ -82,7 +87,12 @@ export function EvaluatorTestPanelContainer({
           store={store}
           testResult={testResult}
           testPending={testPending}
+          resultSize={testResultSize}
+          onResultSizeChange={setTestResultSize}
+          rawResultOpen={rawResultOpen}
+          onRawResultOpenChange={onRawResultOpenChange}
           onRunTest={onRunTest}
+          onOpenExecutionTrace={onOpenExecutionTrace}
         />
       }
     />

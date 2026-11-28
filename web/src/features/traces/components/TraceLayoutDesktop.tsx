@@ -170,6 +170,8 @@ type TraceLayoutDesktopProps = {
   children: ReactNode;
   groupId: string;
   defaultNavigationCollapsed: boolean;
+  /** Tree share of the width on first open; otherwise sized from the container. */
+  defaultNavigationPercent?: number;
   reviewOpen: boolean;
   reviewPanel: ReactNode;
 };
@@ -200,12 +202,17 @@ function TraceNavigationDetailLayout({
   children,
   groupId,
   defaultNavigationCollapsed,
+  defaultNavigationPercent,
   reviewOpen,
   reviewNavigationCollapsed,
   toggleReviewNavigation,
 }: Pick<
   TraceLayoutDesktopProps,
-  "children" | "groupId" | "defaultNavigationCollapsed" | "reviewOpen"
+  | "children"
+  | "groupId"
+  | "defaultNavigationCollapsed"
+  | "defaultNavigationPercent"
+  | "reviewOpen"
 > & {
   reviewNavigationCollapsed: boolean;
   toggleReviewNavigation: () => void;
@@ -229,13 +236,14 @@ function TraceNavigationDetailLayout({
   // first open (no saved layout); memoized so the Group sees a stable prop.
   // Undefined during SSR.
   const computedDefaultLayout = useMemo(() => {
-    const navPercent = computeNavPercent(containerWidthPx);
+    const navPercent =
+      defaultNavigationPercent ?? computeNavPercent(containerWidthPx);
     if (navPercent === undefined) return undefined;
     return {
       [RESIZABLE_PANEL_NAVIGATION_ID]: navPercent,
       [RESIZABLE_PANEL_PREVIEW_ID]: 100 - navPercent,
     };
-  }, [containerWidthPx]);
+  }, [containerWidthPx, defaultNavigationPercent]);
 
   // Restored layout for this group. Read before the collapse flags so we can
   // seed them from what the library is about to restore on mount — otherwise the

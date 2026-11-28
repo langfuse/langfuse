@@ -17,6 +17,7 @@ import {
 } from "@langfuse/icons";
 import {
   ObservabilityEntityDetailHeader,
+  type EntityDetailHeaderAction,
   type HeaderMetric,
 } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
@@ -25,6 +26,7 @@ import {
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { SampleBadge } from "@/src/features/traces/components/SampleBadge";
 import { useTracePresentation } from "@/src/features/traces/contexts/TracePresentationProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
@@ -84,7 +86,7 @@ export const ObservationDetailViewHeader = memo(
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { serverScores } = useTraceData();
-    const { isEmbedded } = useTracePresentation();
+    const { isEmbedded, preferredObservationId } = useTracePresentation();
     const { isAnnotationMode } = useViewPreferences();
     const { isV4: isV4Enabled } = useReadPath();
     const companionTrace = isV4Enabled
@@ -373,6 +375,48 @@ export const ObservationDetailViewHeader = memo(
                           }),
                           companionTrace,
                         });
+                      const addToAction: EntityDetailHeaderAction = {
+                        id: "add-to",
+                        type: "dropdown",
+                        label: "Add to",
+                        icon: PlusIcon,
+                        disabled: !observationWithIO,
+                        items: addToItems,
+                      };
+                      const annotateAction: EntityDetailHeaderAction = {
+                        id: "annotate",
+                        type: "button",
+                        label: "Annotate",
+                        icon: annotationDisabled ? LockIcon : SquarePen,
+                        disabled: annotationDisabled,
+                        onClick: annotate,
+                      };
+                      const commentAction: EntityDetailHeaderAction = {
+                        id: "comment",
+                        type: "button",
+                        label: commentLabel,
+                        icon: commentDrawerControl.disabled
+                          ? MessageSquareOff
+                          : MessageSquare,
+                        disabled: commentDrawerControl.disabled,
+                        onClick: commentDrawerControl.openDrawer,
+                      };
+                      const optionsAction: EntityDetailHeaderAction = {
+                        id: "options",
+                        type: "dropdown",
+                        label: "Options",
+                        icon: EllipsisVertical,
+                        iconOnly: true,
+                        placement: "trailing",
+                        items: utilityItems,
+                      };
+                      const workflowActions = isAnnotationMode
+                        ? [addToAction, commentAction]
+                        : [addToAction, annotateAction, commentAction];
+                      // Embeds keep only the options menu.
+                      const shownWorkflowActions = isEmbedded
+                        ? []
+                        : workflowActions;
                       return (
                         <ObservabilityEntityDetailHeader
                           variant="page"
@@ -381,49 +425,13 @@ export const ObservationDetailViewHeader = memo(
                             title: observation.name || observation.id,
                             itemType: observation.type as ObservationType,
                             titleLevel: observation.level,
-                            actions: [
-                              {
-                                id: "add-to",
-                                type: "dropdown",
-                                label: "Add to",
-                                icon: PlusIcon,
-                                disabled: !observationWithIO,
-                                items: addToItems,
-                              },
-                              ...(!isAnnotationMode
-                                ? [
-                                    {
-                                      id: "annotate",
-                                      type: "button" as const,
-                                      label: "Annotate",
-                                      icon: annotationDisabled
-                                        ? LockIcon
-                                        : SquarePen,
-                                      disabled: annotationDisabled,
-                                      onClick: annotate,
-                                    },
-                                  ]
-                                : []),
-                              {
-                                id: "comment",
-                                type: "button",
-                                label: commentLabel,
-                                icon: commentDrawerControl.disabled
-                                  ? MessageSquareOff
-                                  : MessageSquare,
-                                disabled: commentDrawerControl.disabled,
-                                onClick: commentDrawerControl.openDrawer,
-                              },
-                              {
-                                id: "options",
-                                type: "dropdown",
-                                label: "Options",
-                                icon: EllipsisVertical,
-                                iconOnly: true,
-                                placement: "trailing",
-                                items: utilityItems,
-                              },
-                            ],
+                            titleSize: isEmbedded ? "sm" : undefined,
+                            titleBadges:
+                              isEmbedded &&
+                              observation.id === preferredObservationId ? (
+                                <SampleBadge />
+                              ) : undefined,
+                            actions: [...shownWorkflowActions, optionsAction],
                           }}
                         />
                       );

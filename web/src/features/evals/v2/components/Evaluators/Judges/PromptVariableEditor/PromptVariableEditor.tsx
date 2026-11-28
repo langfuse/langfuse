@@ -15,6 +15,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 import { isValidVariableName, MUSTACHE_REGEX } from "@langfuse/shared";
 import { truncateEnd } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+import { BaselineStrut } from "@/src/features/evals/v2/components/Evaluators/FieldRow/BaselineStrut";
 
 export type InterpolatedPromptPreviewState =
   | {
@@ -266,6 +267,10 @@ export function PromptVariableEditor({
             onToolbarClick();
           }}
         >
+          {/* Set like the toolbar's text, so a label beside the editor can sit on its baseline. */}
+          <span className="-mr-1 flex">
+            <BaselineStrut type="caption" />
+          </span>
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
             {toolbarStart}
           </div>

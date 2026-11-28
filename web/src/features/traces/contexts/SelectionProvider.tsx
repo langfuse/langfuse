@@ -101,8 +101,10 @@ export function SelectionProvider({
   isMobile,
   expandDetailOnMount,
 }: SelectionProviderProps) {
-  // An observation sample keeps its URL selection; tree, timeline and graph clicks do not change it.
-  const selectionLocked = useTracePresentation().presentation === "observation";
+  // An observation sample keeps its URL selection unless the embedder lets the user pick observations.
+  const { presentation, selectableObservationIds } = useTracePresentation();
+  const selectionLocked =
+    presentation === "observation" && selectableObservationIds == null;
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
     "observation",
     StringParam,
