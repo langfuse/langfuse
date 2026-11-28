@@ -20,6 +20,7 @@ CPU-bound fits can be killed without blocking the worker.
 | `src/lib.rs`          | Rust source. Every `#[napi]` item is exported to Node.js.                    |
 | `src/telemetry.rs`    | Metrics and log setup shared by all native code; see Observability.          |
 | `src/topics.rs`       | Seeded UMAP reductions and HDBSCAN for Topics.                               |
+| `vendor/holomap`      | holomap 0.3.1 with a reusable neighbour graph; see its `Cargo.toml`.         |
 | `Cargo.toml`          | Crate manifest (`cdylib`). `Cargo.lock` is committed.                        |
 | `build.rs`            | napi-rs build hook.                                                          |
 | `rust-toolchain.toml` | Pinned compiler version, kept equal to the one `worker/Dockerfile` installs. |

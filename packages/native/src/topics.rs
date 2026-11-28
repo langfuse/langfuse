@@ -1,5 +1,5 @@
 use hdbscan_rs::{ClusterSelectionMethod, Hdbscan, HdbscanParams, Metric as ClusterMetric};
-use holomap::{Holomap, Init, Metric};
+use holomap::{Holomap, Init, Metric, NeighborGraph};
 use napi::{Error, Result, Status};
 use napi_derive::napi;
 use ndarray::Array2;
@@ -75,7 +75,18 @@ pub fn cluster_topic_embeddings(
 
     let neighbors = (count - 1).min(15).min((count / 3).max(3));
     let reduced_dimensions = 10.min(count - 2).min(dimensions);
-    let reduced = reduce(&vectors, dimensions, reduced_dimensions, neighbors, 0.0)?;
+    // The neighbour graph ignores output size and min_dist, so both reductions share it.
+    let graph = reducer(reduced_dimensions, neighbors, 0.0)
+        .neighbor_graph(&vectors, dimensions)
+        .map_err(|error| failure(error.to_string()))?;
+    let reduced = reduce(
+        &vectors,
+        dimensions,
+        reduced_dimensions,
+        neighbors,
+        0.0,
+        &graph,
+    )?;
     let data = Array2::from_shape_vec(
         (count, reduced_dimensions),
         reduced.into_iter().map(f64::from).collect(),
@@ -93,7 +104,7 @@ pub fn cluster_topic_embeddings(
     let labels = clusterer
         .fit_predict(&data.view())
         .map_err(|error| failure(error.to_string()))?;
-    let coordinates = reduce(&vectors, dimensions, 2, neighbors, 0.1)?
+    let coordinates = reduce(&vectors, dimensions, 2, neighbors, 0.1, &graph)?
         .as_chunks::<2>()
         .0
         .iter()
@@ -112,20 +123,26 @@ pub fn cluster_topic_embeddings(
     })
 }
 
+fn reducer(output_dimensions: usize, neighbors: usize, min_dist: f32) -> Holomap {
+    Holomap::builder(42)
+        .n_components(output_dimensions)
+        .n_neighbors(neighbors)
+        .min_dist(min_dist)
+        .metric(Metric::Cosine)
+        .init(Init::Random)
+        .build()
+}
+
 fn reduce(
     vectors: &[f32],
     dimensions: usize,
     output_dimensions: usize,
     neighbors: usize,
     min_dist: f32,
+    graph: &NeighborGraph,
 ) -> Result<Vec<f32>> {
-    let reduced = Holomap::builder(42)
-        .n_components(output_dimensions)
-        .n_neighbors(neighbors)
-        .min_dist(min_dist)
-        .metric(Metric::Cosine)
-        .init(Init::Random)
-        .fit_transform(vectors, dimensions)
+    let reduced = reducer(output_dimensions, neighbors, min_dist)
+        .fit_transform_with_graph(vectors, dimensions, graph)
         .map_err(|error| failure(error.to_string()))?;
     if reduced.len() != vectors.len() / dimensions * output_dimensions
         || reduced.iter().any(|value| !value.is_finite())
@@ -191,6 +208,23 @@ mod tests {
         let second = cluster_topic_embeddings(separated_groups(), settings()).unwrap();
         assert_eq!(first, second);
         assert_eq!(first.status, "complete");
+    }
+
+    #[test]
+    fn shared_neighbor_graph_matches_independent_reductions() {
+        let vectors: Vec<f32> = separated_groups()
+            .into_iter()
+            .flatten()
+            .map(|value| value as f32)
+            .collect();
+        let graph = reducer(4, 15, 0.0).neighbor_graph(&vectors, 6).unwrap();
+        for (output_dimensions, min_dist) in [(4, 0.0), (2, 0.1)] {
+            let independent = reducer(output_dimensions, 15, min_dist)
+                .fit_transform(&vectors, 6)
+                .unwrap();
+            let shared = reduce(&vectors, 6, output_dimensions, 15, min_dist, &graph).unwrap();
+            assert_eq!(shared, independent);
+        }
     }
 
     #[test]
