@@ -65,7 +65,8 @@ export type GatewayGuardrailTemplateKind =
   | "contains"
   | "custom_regex"
   | "bedrock"
-  | "openai_moderation";
+  | "openai_moderation"
+  | "lakera";
 
 /**
  * Built-in rules a regex guardrail can use. Resolve sends the patterns, so the
@@ -444,6 +445,48 @@ export const GatewayOpenAiModerationGuardrailUpdateInputSchema =
     apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
   });
 
+/** Lakera Guard SaaS regions; the gateway maps each to its `{region}.api.lakera.ai` host. */
+export const GATEWAY_LAKERA_GUARDRAIL_REGIONS = [
+  "eu",
+  "us",
+  "ap-southeast-1",
+] as const;
+
+const LAKERA_PROJECT_ID_MAX_LENGTH = 256;
+
+export const GatewayLakeraGuardrailConfigSchema = z.object({
+  region: z.enum(GATEWAY_LAKERA_GUARDRAIL_REGIONS),
+  // Without a project, Lakera screens with its default policy.
+  projectId: z
+    .string()
+    .trim()
+    .max(
+      LAKERA_PROJECT_ID_MAX_LENGTH,
+      `Project ID must be at most ${LAKERA_PROJECT_ID_MAX_LENGTH} characters`,
+    )
+    .refine(
+      (value) =>
+        value.length === 0 || PRINTABLE_ASCII_NO_WHITESPACE_REGEX.test(value),
+      "Project ID must be printable ASCII with no whitespace",
+    )
+    .transform((value) => value || undefined)
+    .optional(),
+});
+
+export type GatewayLakeraGuardrailConfig = z.infer<
+  typeof GatewayLakeraGuardrailConfigSchema
+>;
+
+export const GatewayLakeraGuardrailCreateInputSchema =
+  GatewayLakeraGuardrailConfigSchema.extend({
+    apiKey: GatewayExternalGuardrailApiKeySchema,
+  });
+
+export const GatewayLakeraGuardrailUpdateInputSchema =
+  GatewayLakeraGuardrailConfigSchema.extend({
+    apiKey: GatewayExternalGuardrailApiKeySchema.optional(),
+  });
+
 const GatewayGuardrailSecretPrefixSchema = z
   .string()
   .min(
@@ -521,6 +564,11 @@ export const GATEWAY_GUARDRAIL_TYPE_CAPABILITIES = {
   },
   // Moderation returns verdicts without spans, so it cannot redact.
   OPENAI_MODERATION: {
+    actions: ["BLOCK", "LOG"],
+    defaultAction: "BLOCK",
+    supportsRedactionLabel: false,
+  },
+  LAKERA: {
     actions: ["BLOCK", "LOG"],
     defaultAction: "BLOCK",
     supportsRedactionLabel: false,

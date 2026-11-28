@@ -351,27 +351,40 @@ impl GuardrailItem<'_> {
     /// The model's messages, reasoning and tool calls (`function_call`,
     /// `web_search_call`, `mcp_call`, ...) come from the model; user, system and
     /// developer messages are messages; tool outputs and anything else answer it.
-    fn turn_item(&self) -> crate::guardrails::text::TurnItem {
+    fn turn_item(
+        &self,
+    ) -> (
+        crate::guardrails::text::TurnItem,
+        crate::guardrails::text::Speaker,
+    ) {
+        use crate::guardrails::text::{Speaker, TurnItem};
         let role = self.role.and_then(crate::guardrails::text::string);
         let kind = self.kind.and_then(crate::guardrails::text::string);
         let kind = kind.as_deref().unwrap_or_default();
         match role.as_deref() {
-            Some("assistant") => crate::guardrails::text::TurnItem::Model,
-            Some("user" | "system" | "developer") => crate::guardrails::text::TurnItem::Message,
+            Some("assistant") => (TurnItem::Model, Speaker::Assistant),
+            Some("user") => (TurnItem::Message, Speaker::User),
+            Some("system" | "developer") => (TurnItem::Message, Speaker::System),
             _ if kind == "reasoning"
                 || kind.ends_with("_call")
                 || (kind.starts_with("mcp_") && kind != "mcp_approval_response") =>
             {
-                crate::guardrails::text::TurnItem::Model
+                (TurnItem::Model, Speaker::Assistant)
             }
-            _ => crate::guardrails::text::TurnItem::Output,
+            _ => (TurnItem::Output, Speaker::Tool),
         }
     }
 }
 
 fn classify_guardrail_item(
     item: &serde_json::value::RawValue,
-) -> Result<crate::guardrails::text::TurnItem, crate::guardrails::text::Unreadable> {
+) -> Result<
+    (
+        crate::guardrails::text::TurnItem,
+        crate::guardrails::text::Speaker,
+    ),
+    crate::guardrails::text::Unreadable,
+> {
     let item: GuardrailItem<'_> = crate::guardrails::text::object_item(item)?;
     Ok(item.turn_item())
 }
@@ -397,11 +410,7 @@ pub(super) fn guardrail_turn(
         continues |= members.get(name)?.is_some_and(|value| value != "null");
     }
     if let Some(instructions) = members.get("instructions")? {
-        if had_model_item || continues {
-            turn.push_earlier_member("instructions", instructions);
-        } else {
-            turn.push_member("instructions", instructions);
-        }
+        turn.push_system_member("instructions", instructions, had_model_item || continues);
     }
     // Variables fill a stored prompt with new caller text on every request.
     if let Some(prompt) = members

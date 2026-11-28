@@ -61,6 +61,28 @@ export const OpenRouterMark = /* @__PURE__ */ createIcon(
   0,
 );
 
+function RawLakeraMark({
+  size: _size,
+  ...props
+}: SVGProps<SVGSVGElement> & { size?: number }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" {...props}>
+      <path d="M18.6004 0.216797H11.7021V3.63859H16.1293V8.08965H19.5793V1.19567C19.5793 0.654984 19.1411 0.216797 18.6004 0.216797Z" />
+      <path d="M16.1303 16.37H11.7031V19.7961H18.6014C19.1421 19.7961 19.5803 19.3579 19.5803 18.8172V11.9189H16.1303V16.3692V16.37Z" />
+      <path d="M3.44998 11.9199H0V18.8182C0 19.3589 0.438188 19.797 0.978875 19.797H7.87285V16.371H3.44998V11.9208V11.9199Z" />
+      <path d="M9.84494 7.33865L7.17773 10.0059L9.84494 12.6731L12.5121 10.0059L9.84494 7.33865Z" />
+      <path d="M3.44998 3.63859H7.87285V0.216797H0.978875C0.438188 0.216797 0 0.654984 0 1.19567V8.08965H3.44998V3.63859Z" />
+    </svg>
+  );
+}
+
+/** The Lakera symbol from lakera.ai, drawn in the current color. */
+export const LakeraMark = /* @__PURE__ */ createIcon(
+  RawLakeraMark,
+  "LakeraMark",
+  0,
+);
+
 function RawXaiMark({
   size: _size,
   ...props

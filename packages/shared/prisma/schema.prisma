@@ -503,6 +503,8 @@ enum GatewayGuardrailType {
   BEDROCK
   // External OpenAI Moderation API (`/v1/moderations`).
   OPENAI_MODERATION
+  // External Lakera Guard project evaluated via its v2 guard API.
+  LAKERA
 }
 
 enum GatewayGuardrailAction {
@@ -538,7 +540,8 @@ model GatewayGuardrail {
   scope               GatewayGuardrailScope        @default(LAST_TURN)
   // For REGEX: { "presets": [...], "secretPrefixes": [...], "containsWords": [...], "customRegex": "..." };
   // For BEDROCK: { "guardrailId": "...", "guardrailVersion": "...", "region": "..." };
-  // For OPENAI_MODERATION: { "region": "us" | "eu" }.
+  // For OPENAI_MODERATION: { "region": "us" | "eu" };
+  // For LAKERA: { "region": "...", "projectId": "..." } (projectId optional).
   config              Json                         @default("{}") @db.JsonB
   // Encrypted credential for external guardrail providers (e.g. Bedrock API key); null for REGEX.
   encryptedCredential String?                      @map("encrypted_credentials")

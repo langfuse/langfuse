@@ -46,6 +46,7 @@ import {
   encodeBedrockCredential,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { postExternalGuardrailTest } from "@/src/features/ai-gateway/server/guardrails/postExternalGuardrailTest";
+import { validateLakeraGuardrail } from "@/src/features/ai-gateway/server/guardrails/validateLakeraGuardrail";
 import { validateOpenAiModerationGuardrail } from "@/src/features/ai-gateway/server/guardrails/validateOpenAiModerationGuardrail";
 import type {
   GatewayCachedGuardrailScope,
@@ -61,6 +62,7 @@ import {
   GatewayBedrockGuardrailConfigSchema,
   GatewayGuardrailCustomRegexSchema,
   GatewayGuardrailRedactionLabelSchema,
+  GatewayLakeraGuardrailConfigSchema,
   GatewayOpenAiModerationGuardrailConfigSchema,
   GatewayRegexGuardrailConfigSchema,
   isKnownGuardrailPreset,
@@ -70,6 +72,7 @@ import {
   type GatewayGuardrailActionForType,
   type GatewayGuardrailAssignmentInput,
   type GatewayGuardrailPreset,
+  type GatewayLakeraGuardrailConfig,
   type GatewayOpenAiModerationGuardrailConfig,
 } from "@/src/features/ai-gateway/types/gatewayGuardrail";
 import { assertUnreachable } from "@/src/utils/types";
@@ -236,6 +239,28 @@ export class GatewayGuardrailService {
             },
           ];
         }
+        case "LAKERA": {
+          const config = GatewayLakeraGuardrailConfigSchema.safeParse(
+            guardrail.config,
+          );
+          if (!config.success || !guardrail.encryptedCredential) {
+            return failClosed();
+          }
+          return [
+            {
+              id: guardrail.id,
+              name: guardrail.name,
+              type: "lakera" as const,
+              action,
+              scope,
+              region: config.data.region,
+              ...(config.data.projectId
+                ? { project_id: config.data.projectId }
+                : {}),
+              encrypted_credential: guardrail.encryptedCredential,
+            },
+          ];
+        }
         default:
           return assertUnreachable(guardrail.type);
       }
@@ -358,8 +383,22 @@ export class GatewayGuardrailService {
             apiKey?: string;
           };
         }
+      | {
+          type: "LAKERA";
+          lakera: GatewayLakeraGuardrailConfig & { apiKey?: string };
+        }
     ),
   ) {
+    if (params.type === "LAKERA") {
+      const config = GatewayLakeraGuardrailConfigSchema.parse({
+        region: params.lakera.region,
+        projectId: params.lakera.projectId,
+      });
+      const apiKey =
+        params.lakera.apiKey || (await this.readStoredApiKey(params));
+      await validateLakeraGuardrail({ ...config, apiKey });
+      return { success: true as const };
+    }
     if (params.type === "OPENAI_MODERATION") {
       const config = GatewayOpenAiModerationGuardrailConfigSchema.parse({
         region: params.openAiModeration.region,
@@ -445,6 +484,11 @@ export class GatewayGuardrailService {
             apiKey: string;
           };
         }
+      | {
+          type: "LAKERA";
+          action: GatewayGuardrailActionForType<"LAKERA">;
+          lakera: GatewayLakeraGuardrailConfig & { apiKey: string };
+        }
     ),
   ) {
     const redactionLabel = normalizeRedactionLabel(
@@ -480,6 +524,17 @@ export class GatewayGuardrailService {
       });
       config = moderationConfig;
       encryptedCredential = encrypt(params.openAiModeration.apiKey);
+    } else if (params.type === "LAKERA") {
+      const lakeraConfig = GatewayLakeraGuardrailConfigSchema.parse({
+        region: params.lakera.region,
+        projectId: params.lakera.projectId,
+      });
+      await validateLakeraGuardrail({
+        ...lakeraConfig,
+        apiKey: params.lakera.apiKey,
+      });
+      config = lakeraConfig;
+      encryptedCredential = encrypt(params.lakera.apiKey);
     } else {
       const regexConfig = normalizeGuardrailConfig({
         presets: params.presets,
@@ -567,6 +622,11 @@ export class GatewayGuardrailService {
             apiKey?: string;
           };
         }
+      | {
+          type: "LAKERA";
+          action: GatewayGuardrailActionForType<"LAKERA">;
+          lakera: GatewayLakeraGuardrailConfig & { apiKey?: string };
+        }
     ),
   ) {
     const redactionLabel = normalizeRedactionLabel(
@@ -623,6 +683,29 @@ export class GatewayGuardrailService {
         });
       }
     }
+    if (params.type === "LAKERA") {
+      const nextConfig = GatewayLakeraGuardrailConfigSchema.parse({
+        region: params.lakera.region,
+        projectId: params.lakera.projectId,
+      });
+      const existing = await this.findExternalCredential(params);
+      const existingConfig = GatewayLakeraGuardrailConfigSchema.safeParse(
+        existing.config,
+      );
+      if (
+        params.lakera.apiKey !== undefined ||
+        !existingConfig.success ||
+        existingConfig.data.region !== nextConfig.region ||
+        existingConfig.data.projectId !== nextConfig.projectId
+      ) {
+        await validateLakeraGuardrail({
+          ...nextConfig,
+          apiKey:
+            params.lakera.apiKey ??
+            decryptStoredApiKey("LAKERA", existing.encryptedCredential),
+        });
+      }
+    }
 
     const updated = await this.writeGuardrail(async (tx) => {
       const repo = new GatewayGuardrailRepository(tx);
@@ -670,6 +753,14 @@ export class GatewayGuardrailService {
         });
         if (params.openAiModeration.apiKey !== undefined) {
           encryptedCredential = encrypt(params.openAiModeration.apiKey);
+        }
+      } else if (params.type === "LAKERA") {
+        config = GatewayLakeraGuardrailConfigSchema.parse({
+          region: params.lakera.region,
+          projectId: params.lakera.projectId,
+        });
+        if (params.lakera.apiKey !== undefined) {
+          encryptedCredential = encrypt(params.lakera.apiKey);
         }
       } else {
         // Preserve stored preset IDs unknown to this build (e.g. from a newer pod during rollout).
@@ -1230,6 +1321,11 @@ function toGuardrailDto(
   const openAiModeration = parsedOpenAiModeration?.success
     ? parsedOpenAiModeration.data
     : null;
+  const parsedLakera =
+    record.type === "LAKERA"
+      ? GatewayLakeraGuardrailConfigSchema.safeParse(record.config)
+      : null;
+  const lakera = parsedLakera?.success ? parsedLakera.data : null;
 
   const action = resolveSupportedGuardrailAction(record.type, record.action);
 
@@ -1246,6 +1342,7 @@ function toGuardrailDto(
     customRegex,
     bedrock,
     openAiModeration,
+    lakera,
     assignments: record.assignments.map((assignment) => {
       switch (assignment.scope) {
         case "ORGANIZATION":

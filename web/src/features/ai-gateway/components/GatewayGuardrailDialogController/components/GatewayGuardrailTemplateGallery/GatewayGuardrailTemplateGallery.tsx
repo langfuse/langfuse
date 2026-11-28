@@ -1,4 +1,5 @@
 import { ChevronRight } from "@langfuse/icons";
+import { LakeraMark } from "@langfuse/icons/brand";
 import { SiOpenai } from "@langfuse/icons/si";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -192,6 +193,8 @@ function TemplatePreview({
         return <AwsColorLogo />;
       case "openai":
         return <SiOpenai size="xl" aria-hidden />;
+      case "lakera":
+        return <LakeraMark size="xl" aria-hidden />;
     }
   }
   return (

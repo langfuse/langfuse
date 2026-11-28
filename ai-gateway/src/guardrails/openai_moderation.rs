@@ -5,18 +5,11 @@
 use std::fmt;
 
 use axum::body::Bytes;
-use reqwest::{
-    StatusCode, Url,
-    header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, HeaderValue},
-};
-use reqwest_tracing::DisableOtelPropagation;
-use secrecy::{ExposeSecret, SecretString};
+use reqwest::Url;
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::{
-    ExternalCallFailure, ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome,
-    read_bounded_body,
-};
+use crate::guardrails::external::{ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome};
 
 const MODERATION_MODEL: &str = "omni-moderation-latest";
 const MODERATION_PATH: &str = "/v1/moderations";
@@ -70,85 +63,51 @@ pub(crate) async fn evaluate_one(
     payload: ModerationPayload,
     organization_id: &str,
 ) -> ExternalOutcome {
+    match moderate(client, config, payload).await {
+        Ok(outcome) => outcome,
+        Err(failure) => failure.into_outcome(
+            "openai_moderation",
+            langfuse_guardrail_id,
+            organization_id,
+            &config.region,
+        ),
+    }
+}
+
+async fn moderate(
+    client: &ExternalGuardrailClient,
+    config: &OpenAiModerationGuardrail,
+    payload: ModerationPayload,
+) -> Result<ExternalOutcome, ExternalCallFailure> {
     let origin = moderation_origin(&config.region);
     #[cfg(test)]
     let origin = origin.map(|origin| client.origin_override.as_deref().unwrap_or(origin));
-    let Some(Ok(url)) = origin.map(|origin| Url::parse(&format!("{origin}{MODERATION_PATH}")))
-    else {
-        tracing::warn!(
-            guardrail_id = langfuse_guardrail_id,
-            organization_id,
-            region = %config.region,
-            reason = "invalid_url",
-            "openai moderation guardrail check failed; failing closed"
-        );
-        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
-    };
-    if client.policy.check_allowed_host(&url).is_err() {
-        tracing::warn!(
-            guardrail_id = langfuse_guardrail_id,
-            organization_id,
-            region = %config.region,
-            reason = "blocked_destination",
-            "openai moderation guardrail destination blocked by outbound policy; failing closed"
-        );
-        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
-    }
-    let Ok(mut authorization) =
-        HeaderValue::from_str(&format!("Bearer {}", config.api_key.expose_secret()))
-    else {
-        tracing::warn!(
-            guardrail_id = langfuse_guardrail_id,
-            organization_id,
-            region = %config.region,
-            reason = "invalid_credential",
-            "openai moderation guardrail check failed; failing closed"
-        );
-        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
-    };
-    authorization.set_sensitive(true);
-
+    let url = origin
+        .and_then(|origin| Url::parse(&format!("{origin}{MODERATION_PATH}")).ok())
+        .ok_or(ExternalCallFailure::InvalidUrl)?;
     let response_limit = MIN_RESPONSE_BYTES
         .max(payload.inputs.saturating_mul(MAX_RESULT_BYTES))
         .min(MAX_RESPONSE_BYTES);
-    let request = client
-        .http
-        .post(url)
-        .with_extension(DisableOtelPropagation)
-        .header(AUTHORIZATION, authorization)
-        .header(CONTENT_TYPE, "application/json")
-        .header(ACCEPT, "application/json")
-        .header(ACCEPT_ENCODING, "identity")
-        .body(payload.body);
-
-    match tokio::time::timeout(
-        client.timeout,
-        send_and_parse(request, response_limit, payload.inputs),
-    )
-    .await
-    {
-        Ok(Ok(outcome)) => outcome,
-        Ok(Err(failure)) => {
-            tracing::warn!(
-                guardrail_id = langfuse_guardrail_id,
-                organization_id,
-                region = %config.region,
-                reason = failure.reason(),
-                status = failure.status(),
-                "openai moderation guardrail check failed; failing closed"
-            );
-            ExternalOutcome::Failed(failure.kind())
-        }
-        Err(_) => {
-            tracing::warn!(
-                guardrail_id = langfuse_guardrail_id,
-                organization_id,
-                region = %config.region,
-                reason = "timeout",
-                "openai moderation guardrail check timed out; failing closed"
-            );
-            ExternalOutcome::Failed(ExternalFailureKind::Timeout)
-        }
+    let content_length = payload.body.len();
+    let body = client
+        .post_json(
+            url,
+            &config.api_key,
+            payload.body.into(),
+            content_length,
+            response_limit,
+        )
+        .await?;
+    let parsed: ModerationResponse =
+        serde_json::from_slice(&body).map_err(|_| ExternalCallFailure::InvalidResponse)?;
+    // A short result list would leave some inputs unscreened.
+    if parsed.results.len() != payload.inputs {
+        return Err(ExternalCallFailure::InvalidResponse);
+    }
+    if parsed.results.iter().any(|result| result.flagged) {
+        Ok(ExternalOutcome::Blocked)
+    } else {
+        Ok(ExternalOutcome::None)
     }
 }
 
@@ -176,33 +135,6 @@ struct ModerationResult {
     flagged: bool,
 }
 
-async fn send_and_parse(
-    request: reqwest_middleware::RequestBuilder,
-    response_limit: usize,
-    inputs: usize,
-) -> Result<ExternalOutcome, ExternalCallFailure> {
-    let response = request
-        .send()
-        .await
-        .map_err(|_| ExternalCallFailure::Transport)?;
-    let status = response.status();
-    if status != StatusCode::OK {
-        return Err(ExternalCallFailure::HttpStatus(status));
-    }
-    let body = read_bounded_body(response, response_limit).await?;
-    let parsed: ModerationResponse =
-        serde_json::from_slice(&body).map_err(|_| ExternalCallFailure::InvalidResponse)?;
-    // A short result list would leave some inputs unscreened.
-    if parsed.results.len() != inputs {
-        return Err(ExternalCallFailure::InvalidResponse);
-    }
-    if parsed.results.iter().any(|result| result.flagged) {
-        Ok(ExternalOutcome::Blocked)
-    } else {
-        Ok(ExternalOutcome::None)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -210,10 +142,11 @@ mod tests {
     use super::*;
     use crate::guardrails::{
         Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
-        external::ExternalPayloads,
+        external::{ExternalBlock, ExternalFailureKind, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
+    use reqwest::{StatusCode, header::AUTHORIZATION};
 
     const PASS_RESULT: &str =
         r#"{"flagged":false,"categories":{"violence":false},"category_scores":{"violence":0.01}}"#;
@@ -241,8 +174,11 @@ mod tests {
             Duration::from_millis(80),
         );
         let refs = [&guardrail];
-        let payloads =
-            ExternalPayloads::for_guardrails(&refs, &["hello"], GuardrailLocation::Request);
+        let payloads = ExternalPayloads::for_guardrails(
+            &refs,
+            &[ExternalBlock::user("hello")],
+            GuardrailLocation::Request,
+        );
         assert_eq!(
             client.evaluate_many(&refs, &payloads, "org-1").await,
             vec![ExternalOutcome::Failed(ExternalFailureKind::Unavailable)]
@@ -333,7 +269,7 @@ mod tests {
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
         let payloads = ExternalPayloads::for_guardrails(
             &refs,
-            &["hello", "world"],
+            &[ExternalBlock::user("hello"), ExternalBlock::user("world")],
             GuardrailLocation::Request,
         );
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;

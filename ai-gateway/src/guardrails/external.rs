@@ -5,11 +5,19 @@ use std::{sync::Arc, time::Duration};
 
 use axum::body::Bytes;
 use futures_util::future::join_all;
-use reqwest::{Client, StatusCode};
+use reqwest::{
+    Body, Client, StatusCode, Url,
+    header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, HeaderValue},
+};
 use reqwest_middleware::ClientWithMiddleware;
+use reqwest_tracing::DisableOtelPropagation;
+use secrecy::{ExposeSecret, SecretString};
 
 use crate::{
-    guardrails::{Guardrail, GuardrailKind, GuardrailLocation, bedrock, openai_moderation},
+    guardrails::{
+        Guardrail, GuardrailKind, GuardrailLocation, bedrock, lakera, openai_moderation,
+        text::Speaker,
+    },
     providers::OutboundPolicy,
     resolution::ResolutionError,
 };
@@ -38,11 +46,116 @@ pub(crate) enum ExternalOutcome {
     Failed(ExternalFailureKind),
 }
 
+/// Why one external guardrail HTTP call failed; logged and mapped to a fail-closed outcome.
+pub(crate) enum ExternalCallFailure {
+    InvalidUrl,
+    BlockedDestination,
+    InvalidCredential,
+    Serialization,
+    RequestTooLarge,
+    Transport,
+    Timeout,
+    HttpStatus(StatusCode),
+    ResponseTooLarge,
+    InvalidResponse,
+    UnexpectedAction,
+}
+
+impl ExternalCallFailure {
+    fn reason(&self) -> &'static str {
+        match self {
+            Self::InvalidUrl => "invalid_url",
+            Self::BlockedDestination => "blocked_destination",
+            Self::InvalidCredential => "invalid_credential",
+            Self::Serialization => "serialization",
+            Self::RequestTooLarge => "request_too_large",
+            Self::Transport => "transport",
+            Self::Timeout => "timeout",
+            Self::HttpStatus(_) => "http_status",
+            Self::ResponseTooLarge => "response_too_large",
+            Self::InvalidResponse => "invalid_response",
+            Self::UnexpectedAction => "unexpected_action",
+        }
+    }
+
+    fn status(&self) -> Option<u16> {
+        match self {
+            Self::HttpStatus(status) => Some(status.as_u16()),
+            Self::InvalidUrl
+            | Self::BlockedDestination
+            | Self::InvalidCredential
+            | Self::Serialization
+            | Self::RequestTooLarge
+            | Self::Transport
+            | Self::Timeout
+            | Self::ResponseTooLarge
+            | Self::InvalidResponse
+            | Self::UnexpectedAction => None,
+        }
+    }
+
+    fn kind(&self) -> ExternalFailureKind {
+        match self {
+            Self::Timeout => ExternalFailureKind::Timeout,
+            Self::HttpStatus(StatusCode::TOO_MANY_REQUESTS) => ExternalFailureKind::RateLimited,
+            Self::InvalidUrl
+            | Self::BlockedDestination
+            | Self::InvalidCredential
+            | Self::Serialization
+            | Self::RequestTooLarge
+            | Self::Transport
+            | Self::HttpStatus(_)
+            | Self::ResponseTooLarge
+            | Self::InvalidResponse
+            | Self::UnexpectedAction => ExternalFailureKind::Unavailable,
+        }
+    }
+
+    /// Logs the failure without provider bodies or credentials and returns the
+    /// fail-closed outcome.
+    pub(crate) fn into_outcome(
+        self,
+        provider: &'static str,
+        guardrail_id: &str,
+        organization_id: &str,
+        region: &str,
+    ) -> ExternalOutcome {
+        tracing::warn!(
+            provider,
+            guardrail_id,
+            organization_id,
+            region,
+            reason = self.reason(),
+            status = self.status(),
+            "external guardrail check failed; failing closed"
+        );
+        ExternalOutcome::Failed(self.kind())
+    }
+}
+
+/// One text block an external guardrail screens, with the chat role it had.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ExternalBlock<'a> {
+    pub text: &'a str,
+    pub speaker: Speaker,
+}
+
+#[cfg(test)]
+impl<'a> ExternalBlock<'a> {
+    pub(crate) fn user(text: &'a str) -> Self {
+        Self {
+            text,
+            speaker: Speaker::User,
+        }
+    }
+}
+
 /// Pre-serialized request payloads for external guardrail providers, built once
 /// per request so temporary text copies can be dropped before awaiting network I/O.
 pub(crate) struct ExternalPayloads {
     bedrock: Option<Bytes>,
     openai_moderation: Option<openai_moderation::ModerationPayload>,
+    lakera: Option<Bytes>,
 }
 
 impl ExternalPayloads {
@@ -54,28 +167,37 @@ impl ExternalPayloads {
         };
         has(|kind| matches!(kind, GuardrailKind::Bedrock(_)))
             + has(|kind| matches!(kind, GuardrailKind::OpenAiModeration(_)))
+            + has(|kind| matches!(kind, GuardrailKind::Lakera(_)))
     }
 
     pub(crate) fn for_guardrails(
         guardrails: &[&Guardrail],
-        blocks: &[&str],
+        blocks: &[ExternalBlock<'_>],
         location: GuardrailLocation,
     ) -> Self {
+        let texts: Vec<&str> = blocks.iter().map(|block| block.text).collect();
         let needs_bedrock = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Bedrock(_)));
         let bedrock = needs_bedrock
-            .then(|| bedrock::serialize_blocks(blocks, location.bedrock_source()))
+            .then(|| bedrock::serialize_blocks(&texts, location.bedrock_source()))
             .flatten();
         let needs_openai_moderation = guardrails
             .iter()
             .any(|guardrail| matches!(guardrail.kind, GuardrailKind::OpenAiModeration(_)));
         let openai_moderation = needs_openai_moderation
-            .then(|| openai_moderation::serialize_blocks(blocks))
+            .then(|| openai_moderation::serialize_blocks(&texts))
+            .flatten();
+        let needs_lakera = guardrails
+            .iter()
+            .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Lakera(_)));
+        let lakera = needs_lakera
+            .then(|| lakera::serialize_blocks(blocks))
             .flatten();
         Self {
             bedrock,
             openai_moderation,
+            lakera,
         }
     }
 }
@@ -172,10 +294,64 @@ impl ExternalGuardrailClient {
                 )
                 .await
             }
+            GuardrailKind::Lakera(config) => {
+                let Some(payload) = payloads.lakera.clone() else {
+                    tracing::warn!(
+                        guardrail_id = %guardrail.id,
+                        organization_id,
+                        reason = "serialization",
+                        "external guardrail request failed to serialize; failing closed"
+                    );
+                    return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
+                };
+                lakera::evaluate_one(self, &guardrail.id, config, payload, organization_id).await
+            }
             GuardrailKind::Regex { .. } | GuardrailKind::FailClosed | GuardrailKind::Unknown => {
                 ExternalOutcome::None
             }
         }
+    }
+
+    /// POSTs a JSON body with bearer auth under the per-call timeout and returns
+    /// the body of a `200 OK` response, bounded by `response_limit` bytes.
+    pub(crate) async fn post_json(
+        &self,
+        url: Url,
+        api_key: &SecretString,
+        body: Body,
+        content_length: usize,
+        response_limit: usize,
+    ) -> Result<Vec<u8>, ExternalCallFailure> {
+        if self.policy.check_allowed_host(&url).is_err() {
+            return Err(ExternalCallFailure::BlockedDestination);
+        }
+        let mut authorization =
+            HeaderValue::from_str(&format!("Bearer {}", api_key.expose_secret()))
+                .map_err(|_| ExternalCallFailure::InvalidCredential)?;
+        authorization.set_sensitive(true);
+        let request = self
+            .http
+            .post(url)
+            .with_extension(DisableOtelPropagation)
+            .header(AUTHORIZATION, authorization)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, content_length)
+            .header(ACCEPT, "application/json")
+            .header(ACCEPT_ENCODING, "identity")
+            .body(body);
+        tokio::time::timeout(self.timeout, async {
+            let response = request
+                .send()
+                .await
+                .map_err(|_| ExternalCallFailure::Transport)?;
+            let status = response.status();
+            if status != StatusCode::OK {
+                return Err(ExternalCallFailure::HttpStatus(status));
+            }
+            read_bounded_body(response, response_limit).await
+        })
+        .await
+        .map_err(|_| ExternalCallFailure::Timeout)?
     }
 
     #[cfg(test)]
@@ -186,49 +362,7 @@ impl ExternalGuardrailClient {
     }
 }
 
-/// Why one external guardrail provider call failed.
-pub(super) enum ExternalCallFailure {
-    Transport,
-    HttpStatus(StatusCode),
-    ResponseTooLarge,
-    InvalidResponse,
-    UnexpectedAction,
-}
-
-impl ExternalCallFailure {
-    pub(super) fn reason(&self) -> &'static str {
-        match self {
-            Self::Transport => "transport",
-            Self::HttpStatus(_) => "http_status",
-            Self::ResponseTooLarge => "response_too_large",
-            Self::InvalidResponse => "invalid_response",
-            Self::UnexpectedAction => "unexpected_action",
-        }
-    }
-
-    pub(super) fn status(&self) -> Option<u16> {
-        match self {
-            Self::HttpStatus(status) => Some(status.as_u16()),
-            Self::Transport
-            | Self::ResponseTooLarge
-            | Self::InvalidResponse
-            | Self::UnexpectedAction => None,
-        }
-    }
-
-    pub(super) fn kind(&self) -> ExternalFailureKind {
-        match self {
-            Self::HttpStatus(StatusCode::TOO_MANY_REQUESTS) => ExternalFailureKind::RateLimited,
-            Self::HttpStatus(_)
-            | Self::Transport
-            | Self::ResponseTooLarge
-            | Self::InvalidResponse
-            | Self::UnexpectedAction => ExternalFailureKind::Unavailable,
-        }
-    }
-}
-
-pub(super) async fn read_bounded_body(
+async fn read_bounded_body(
     mut response: reqwest::Response,
     limit: usize,
 ) -> Result<Vec<u8>, ExternalCallFailure> {

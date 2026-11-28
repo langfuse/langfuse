@@ -4,18 +4,11 @@
 use std::{fmt, fmt::Write as _};
 
 use axum::body::Bytes;
-use reqwest::{
-    StatusCode, Url,
-    header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, HeaderValue},
-};
-use reqwest_tracing::DisableOtelPropagation;
-use secrecy::{ExposeSecret, SecretString};
+use reqwest::Url;
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::{
-    ExternalCallFailure, ExternalFailureKind, ExternalGuardrailClient, ExternalOutcome,
-    read_bounded_body,
-};
+use crate::guardrails::external::{ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome};
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
 const MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
@@ -71,79 +64,46 @@ pub(crate) async fn evaluate_one(
         .unwrap_or_else(|| bedrock_runtime_origin(&config.region));
     #[cfg(not(test))]
     let origin = bedrock_runtime_origin(&config.region);
-    let Ok(url) = apply_url(&origin, config) else {
-        tracing::warn!(
-            guardrail_id = langfuse_guardrail_id,
+    match apply(client, &origin, config, payload).await {
+        Ok(outcome) => outcome,
+        Err(failure) => failure.into_outcome(
+            "bedrock",
+            langfuse_guardrail_id,
             organization_id,
-            region = %config.region,
-            reason = "invalid_url",
-            "bedrock guardrail check failed; failing closed"
-        );
-        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
-    };
-    if client.policy.check_allowed_host(&url).is_err() {
-        tracing::warn!(
-            guardrail_id = langfuse_guardrail_id,
-            organization_id,
-            region = %config.region,
-            reason = "blocked_destination",
-            "bedrock guardrail destination blocked by outbound policy; failing closed"
-        );
-        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
+            &config.region,
+        ),
     }
-    let Ok(mut authorization) =
-        HeaderValue::from_str(&format!("Bearer {}", config.api_key.expose_secret()))
-    else {
-        tracing::warn!(
-            guardrail_id = langfuse_guardrail_id,
-            organization_id,
-            region = %config.region,
-            reason = "invalid_credential",
-            "bedrock guardrail check failed; failing closed"
-        );
-        return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
-    };
-    authorization.set_sensitive(true);
+}
 
+async fn apply(
+    client: &ExternalGuardrailClient,
+    origin: &str,
+    config: &BedrockGuardrail,
+    payload: Bytes,
+) -> Result<ExternalOutcome, ExternalCallFailure> {
+    let url = apply_url(origin, config).map_err(|_| ExternalCallFailure::InvalidUrl)?;
     let response_limit = MAX_BEDROCK_RESPONSE_BYTES.max(
         payload
             .len()
             .saturating_mul(2)
             .min(MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES),
     );
-    let request = client
-        .http
-        .post(url)
-        .with_extension(DisableOtelPropagation)
-        .header(AUTHORIZATION, authorization)
-        .header(CONTENT_TYPE, "application/json")
-        .header(ACCEPT, "application/json")
-        .header(ACCEPT_ENCODING, "identity")
-        .body(payload);
-
-    match tokio::time::timeout(client.timeout, send_and_parse(request, response_limit)).await {
-        Ok(Ok(outcome)) => outcome,
-        Ok(Err(failure)) => {
-            tracing::warn!(
-                guardrail_id = langfuse_guardrail_id,
-                organization_id,
-                region = %config.region,
-                reason = failure.reason(),
-                status = failure.status(),
-                "bedrock guardrail check failed; failing closed"
-            );
-            ExternalOutcome::Failed(failure.kind())
-        }
-        Err(_) => {
-            tracing::warn!(
-                guardrail_id = langfuse_guardrail_id,
-                organization_id,
-                region = %config.region,
-                reason = "timeout",
-                "bedrock guardrail check timed out; failing closed"
-            );
-            ExternalOutcome::Failed(ExternalFailureKind::Timeout)
-        }
+    let content_length = payload.len();
+    let body = client
+        .post_json(
+            url,
+            &config.api_key,
+            payload.into(),
+            content_length,
+            response_limit,
+        )
+        .await?;
+    let parsed: ApplyGuardrailResponse =
+        serde_json::from_slice(&body).map_err(|_| ExternalCallFailure::InvalidResponse)?;
+    match parsed.action.as_str() {
+        BEDROCK_INTERVENED_ACTION => Ok(extract_external_outcome(parsed)),
+        BEDROCK_NONE_ACTION => Ok(ExternalOutcome::None),
+        _ => Err(ExternalCallFailure::UnexpectedAction),
     }
 }
 
@@ -241,28 +201,6 @@ struct BedrockPolicyItem {
     detected: Option<bool>,
 }
 
-async fn send_and_parse(
-    request: reqwest_middleware::RequestBuilder,
-    response_limit: usize,
-) -> Result<ExternalOutcome, ExternalCallFailure> {
-    let response = request
-        .send()
-        .await
-        .map_err(|_| ExternalCallFailure::Transport)?;
-    let status = response.status();
-    if status != StatusCode::OK {
-        return Err(ExternalCallFailure::HttpStatus(status));
-    }
-    let body = read_bounded_body(response, response_limit).await?;
-    let parsed: ApplyGuardrailResponse =
-        serde_json::from_slice(&body).map_err(|_| ExternalCallFailure::InvalidResponse)?;
-    match parsed.action.as_str() {
-        BEDROCK_INTERVENED_ACTION => Ok(extract_external_outcome(parsed)),
-        BEDROCK_NONE_ACTION => Ok(ExternalOutcome::None),
-        _ => Err(ExternalCallFailure::UnexpectedAction),
-    }
-}
-
 fn is_detected(detected: Option<bool>) -> bool {
     detected != Some(false)
 }
@@ -341,10 +279,11 @@ mod tests {
     use super::*;
     use crate::guardrails::{
         Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
-        external::ExternalPayloads,
+        external::{ExternalBlock, ExternalFailureKind, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
+    use reqwest::{StatusCode, header::AUTHORIZATION};
 
     fn sample_config(guardrail_id: &str, version: &str) -> BedrockGuardrail {
         BedrockGuardrail {
@@ -502,8 +441,11 @@ mod tests {
             sample_guardrail("g6", "error"),
         ];
         let refs: Vec<&Guardrail> = guardrails.iter().collect();
-        let payloads =
-            ExternalPayloads::for_guardrails(&refs, &["hello world"], GuardrailLocation::Request);
+        let payloads = ExternalPayloads::for_guardrails(
+            &refs,
+            &[ExternalBlock::user("hello world")],
+            GuardrailLocation::Request,
+        );
         let results = client.evaluate_many(&refs, &payloads, "org-1").await;
         assert_eq!(
             results,

@@ -158,6 +158,23 @@ export function GatewayGuardrailDialogController({
           testMutation.reset();
           const assignments = targetOptionsToAssignments(values.targets);
           const createGuardrail = () => {
+            if (values.lakera) {
+              return createMutation.mutateAsync({
+                orgId: organizationId,
+                type: "LAKERA",
+                name: values.name,
+                action: resolveSupportedGuardrailAction(
+                  "LAKERA",
+                  values.action,
+                ),
+                scope: values.scope,
+                lakera: {
+                  ...values.lakera,
+                  apiKey: values.lakera.apiKey ?? "",
+                },
+                assignments,
+              });
+            }
             if (values.openAiModeration) {
               return createMutation.mutateAsync({
                 orgId: organizationId,
@@ -207,6 +224,21 @@ export function GatewayGuardrailDialogController({
             });
           };
           const updateGuardrail = (id: string) => {
+            if (values.lakera) {
+              return updateMutation.mutateAsync({
+                orgId: organizationId,
+                id,
+                type: "LAKERA",
+                name: values.name,
+                action: resolveSupportedGuardrailAction(
+                  "LAKERA",
+                  values.action,
+                ),
+                scope: values.scope,
+                lakera: values.lakera,
+                assignments,
+              });
+            }
             if (values.openAiModeration) {
               return updateMutation.mutateAsync({
                 orgId: organizationId,
@@ -490,6 +522,7 @@ function GuardrailDialogContent({
           customRegex: guardrail.customRegex,
           bedrock: guardrail.bedrock ?? undefined,
           openAiModeration: guardrail.openAiModeration ?? undefined,
+          lakera: guardrail.lakera ?? undefined,
           action: initialAction,
           scope: guardrail.scope,
           redactionLabel:
@@ -538,6 +571,9 @@ function toRegexActionInput(
 }
 
 function toExternalTestInput(values: GatewayGuardrailFormValues) {
+  if (values.lakera) {
+    return { type: "LAKERA" as const, lakera: values.lakera };
+  }
   if (values.openAiModeration) {
     return {
       type: "OPENAI_MODERATION" as const,
@@ -623,6 +659,9 @@ function resolveEditableTemplate(guardrail: GatewayGuardrailRow): {
   }
   if (guardrail.type === "OPENAI_MODERATION") {
     return { templateKind: "openai_moderation", availablePresets: [] };
+  }
+  if (guardrail.type === "LAKERA") {
+    return { templateKind: "lakera", availablePresets: [] };
   }
   if (
     guardrail.presets.length === 0 &&
