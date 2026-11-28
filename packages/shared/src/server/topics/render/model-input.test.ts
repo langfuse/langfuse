@@ -307,3 +307,58 @@ it("places an issue without a message at its moment across overlapping threads",
     mixed.indexOf("[error SPAN cleanup] cleanup failed"),
   );
 });
+
+it("names a structured-output response and omits the line when no assistant message exists", () => {
+  const at = new Date("2026-01-01T00:00:00.000Z");
+  const message = (
+    id: string,
+    role: "user" | "assistant",
+    source: "input" | "output",
+    parts: Transcript["threads"][number]["currentTurn"]["messages"][number]["parts"],
+  ) => ({
+    id,
+    observationId: "generation",
+    traceId: "trace",
+    startTime: at,
+    endTime: at,
+    role,
+    source,
+    parts,
+  });
+  const run = (...messages: ReturnType<typeof message>[]): Transcript => ({
+    threads: [
+      {
+        conversationHistory: [],
+        currentTurn: {
+          nestingLevel: 0,
+          observations: [{ id: "generation", traceId: "trace" }],
+          messages,
+        },
+      },
+    ],
+  });
+  const request = message("u1", "user", "input", [
+    { type: "text", text: "Classify this ticket" },
+  ]);
+
+  // Extraction apps answer with a JSON object only.
+  const structured = renderStoredTopicText(
+    run(
+      request,
+      message("a1", "assistant", "output", [
+        { type: "data", value: { category: "billing" } },
+      ] as never),
+    ),
+    [],
+  );
+  expect(structured.text).toContain(
+    "last action: assistant structured output\nresponse: structured output",
+  );
+  expect(structured.response).toBe("structured_output");
+
+  // A request without any assistant message: the transcript cannot tell what the run returned.
+  const unanswered = renderStoredTopicText(run(request), []);
+  expect(unanswered.text).toContain("last action: user message");
+  expect(unanswered.text).not.toContain("response:");
+  expect(unanswered.response).toBe("no_assistant_message");
+});

@@ -7,7 +7,7 @@ import type {
 import {
   redactModelPayload,
   renderTranscript,
-  type TopicNoneReplyEnding,
+  type TopicResponse,
 } from "./renderer";
 import { topicsTranscriptConfig } from "./renderer-config";
 import type { ExecutionIssue, Transcript } from "../../transcript/types";
@@ -102,7 +102,7 @@ export function prepareAssembledTopicTranscript(
 }
 
 // Bump when the Topics text rendering changes what the summarizer sees.
-export const TOPICS_TEXT_VERSION = "topics-text-v3";
+export const TOPICS_TEXT_VERSION = "topics-text-v4";
 
 // No per-block caps; only the summary input limit bounds the text.
 const UNCAPPED = Number.MAX_SAFE_INTEGER;
@@ -130,10 +130,7 @@ const UNCAPPED_TOPICS_CONFIG = {
 export function renderStoredTopicText(
   transcript: Transcript,
   executionIssues: ExecutionIssue[],
-): {
-  text: string;
-  visibleReply: { value: string; noneEnding: TopicNoneReplyEnding | null };
-} {
+): { text: string; response: TopicResponse } {
   const issues = new Map(
     executionIssues.map((issue) => [issue.observationId, issue]),
   );
@@ -185,10 +182,10 @@ export function renderStoredTopicText(
       metadata: {},
     } as unknown as Observation;
   });
-  const { text, visibleReply } = renderTranscript(
+  const { text, response } = renderTranscript(
     transcript,
     observations,
     UNCAPPED_TOPICS_CONFIG,
   );
-  return { text, visibleReply };
+  return { text, response };
 }
