@@ -1,4 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client.js";
+import { TRACE_START_SLACK_MS } from "./clickhouse.js";
+import { topicFilterConditions } from "./trace-filter.js";
 
 const postgres = vi.hoisted(() => ({
   listTopicFacets: vi.fn(),
@@ -31,10 +34,6 @@ it("follows the table window up to 93 days and rejects longer or open windows", 
       },
     ],
   });
-  const { topicFilterConditions } = await import("./trace-filter.js");
-  const { TRACE_START_SLACK_MS } = await import("./clickhouse.js");
-  const { convertDateToClickhouseDateTime } =
-    await import("../clickhouse/client.js");
   const to = new Date("2026-06-01T00:00:00.000Z");
   const bound = (operator: ">=" | "<", value: Date) => ({
     type: "datetime" as const,
@@ -79,7 +78,6 @@ it("follows the table window up to 93 days and rejects longer or open windows", 
 });
 
 it("matches nothing without querying when the table's date filters cannot overlap", async () => {
-  const { topicFilterConditions } = await import("./trace-filter.js");
   const bounds = [
     {
       type: "datetime" as const,
@@ -105,4 +103,61 @@ it("matches nothing without querying when the table's date filters cannot overla
     ]),
   ).resolves.toEqual([]);
   expect(postgres.listTopicFacets).not.toHaveBeenCalled();
+});
+
+it("matches stable topic IDs directly (including after rename or with duplicate names) and falls back to names for legacy filters", async () => {
+  postgres.listTopicFacets.mockResolvedValue([
+    { id: "facet-1", name: "Intent" },
+  ]);
+  postgres.getPublishedTopicMaps.mockResolvedValue({
+    runIds: ["run-1"],
+    maps: [
+      {
+        facetId: "facet-1",
+        topics: [
+          { topicId: "topic-a", name: "Support" },
+          { topicId: "topic-b", name: "Support" },
+          { topicId: "topic-c", name: "Renamed Billing" },
+        ],
+      },
+    ],
+  });
+  const window = [
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: ">=" as const,
+      value: new Date("2026-05-25T00:00:00.000Z"),
+    },
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: "<" as const,
+      value: new Date("2026-06-01T00:00:00.000Z"),
+    },
+  ];
+
+  // Stable ID targets only topic-a even though topic-b shares the same name.
+  const [byId] = await topicFilterConditions("project-b", [
+    { ...topicFilter, value: ["topic-a"] },
+    ...window,
+  ]);
+  expect(byId?.params.topicFilter0_topicIds).toEqual(["topic-a"]);
+
+  // Stable ID keeps matching after a topic rename.
+  const [afterRename] = await topicFilterConditions("project-b", [
+    { ...topicFilter, value: ["topic-c"] },
+    ...window,
+  ]);
+  expect(afterRename?.params.topicFilter0_topicIds).toEqual(["topic-c"]);
+
+  // Legacy name-based URLs still resolve to matching topic IDs.
+  const [legacyName] = await topicFilterConditions("project-b", [
+    { ...topicFilter, value: ["Support"] },
+    ...window,
+  ]);
+  expect(legacyName?.params.topicFilter0_topicIds).toEqual([
+    "topic-a",
+    "topic-b",
+  ]);
 });

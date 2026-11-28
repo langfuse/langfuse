@@ -88,7 +88,7 @@ export function TopicTreemapView({
           tracingTopic={
             !selected || selected.id === UNASSIGNED_TOPIC_ID
               ? undefined
-              : { facet, name: selected.name }
+              : { facet, topicId: selected.id }
           }
           topicColors={new Map(topics.map((topic) => [topic.id, topic.color]))}
           peekView={peekView}

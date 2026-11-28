@@ -42,7 +42,9 @@ export function hasEmptyCheckboxSelection(
  *  nested key→values records for keyed facets). */
 type SidebarFilterOptions = Record<
   string,
-  (string | SingleValueOption)[] | Record<string, string[]> | undefined
+  | (string | SingleValueOption)[]
+  | Record<string, (string | SingleValueOption)[]>
+  | undefined
 >;
 
 export type SidebarFilterActionContext = {

@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
+import { withKeyedFieldOptions } from "@/src/features/search-bar/lib/fields";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
@@ -829,17 +830,31 @@ export default function ObservationsEventsTable({
   // (full-text search — bare text and content:/input:/output: — goes inline in
   // the bar); the sidebar and time/refresh controls stay.
   const searchBarMode = showSearchBar && !externalFilterState;
-  const searchRegistry = eventsSearchRegistry(
-    [
-      ...(eventsFilterConfig.omittedFilterColumns ?? []),
-      ...(userId ? ["userId"] : []),
-      ...(sessionId ? ["sessionId"] : []),
-      ...(promptName ? ["promptName"] : []),
-      ...(promptVersion ? ["promptVersion"] : []),
-    ],
+  const searchRegistry = useMemo(() => {
+    const base = eventsSearchRegistry(
+      [
+        ...(eventsFilterConfig.omittedFilterColumns ?? []),
+        ...(userId ? ["userId"] : []),
+        ...(sessionId ? ["sessionId"] : []),
+        ...(promptName ? ["promptName"] : []),
+        ...(promptVersion ? ["promptVersion"] : []),
+      ],
+      tableStatePolicy.useHostSearchScopes,
+      showTopicFilter,
+    );
+    return showTopicFilter && topicFilterOptions
+      ? withKeyedFieldOptions(base, "topics", topicFilterOptions)
+      : base;
+  }, [
+    eventsFilterConfig.omittedFilterColumns,
+    userId,
+    sessionId,
+    promptName,
+    promptVersion,
     tableStatePolicy.useHostSearchScopes,
     showTopicFilter,
-  );
+    topicFilterOptions,
+  ]);
   const sidebarAiFiltersEnabled =
     !searchBarMode || !searchRegistry.aiFilterPrompt;
 

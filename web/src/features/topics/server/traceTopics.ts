@@ -1,4 +1,7 @@
-import { sortTopicFacets } from "@langfuse/shared/topics";
+import {
+  buildTopicFilterOptions,
+  sortTopicFacets,
+} from "@langfuse/shared/topics";
 import {
   getCompletedTopicRuleRunIds,
   getCurrentTopicMapRows,
@@ -8,26 +11,43 @@ import {
   readCurrentTraceTopics,
 } from "@langfuse/shared/topics/server";
 
-/** Sidebar and search bar options: facet name → topic names of its current published map. */
+/** Sidebar and search bar options: facet name → `{ value: stableTopicId, displayValue, name }` of its current published maps. */
 export async function topicFilterOptions(projectId: string) {
-  const facets = sortTopicFacets(await listTopicFacets(projectId));
+  const [facets, rules] = await Promise.all([
+    listTopicFacets(projectId).then(sortTopicFacets),
+    listTopicRules(projectId),
+  ]);
   const { maps } = await getPublishedTopicMaps(
     projectId,
     facets.map((facet) => facet.id),
   );
+  const ruleNameById = new Map(rules.map((rule) => [rule.id, rule.name]));
   return Object.fromEntries(
     facets.flatMap((facet) => {
-      // Each rule maps the facet separately; equal names merge into one option.
-      const names = [
-        ...new Set(
-          maps
-            .filter((map) => map.facetId === facet.id)
-            .flatMap((map) => map.topics.map((topic) => topic.name)),
-        ),
-      ];
-      return names.length > 0 ? [[facet.name, names]] : [];
+      const facetTopics = maps
+        .filter((map) => map.facetId === facet.id)
+        .flatMap((map) => {
+          const qualifier = map.ruleId
+            ? ruleNameById.get(map.ruleId)
+            : undefined;
+          return map.topics.map((topic) => ({
+            id: topic.topicId,
+            name: topic.name,
+            ...(qualifier ? { qualifier } : {}),
+          }));
+        });
+      // Match buildTopicFilterOptions' first-wins deduplication by topic ID.
+      const nameById = new Map<string, string>();
+      for (const topic of facetTopics) {
+        if (!nameById.has(topic.id)) nameById.set(topic.id, topic.name);
+      }
+      const options = buildTopicFilterOptions(facetTopics).map((option) => ({
+        ...option,
+        name: nameById.get(option.value) ?? option.displayValue,
+      }));
+      return options.length > 0 ? [[facet.name, options]] : [];
     }),
-  ) as Record<string, string[]>;
+  ) as Record<string, { value: string; displayValue: string; name: string }[]>;
 }
 
 /** Latest topics for a page of traces: one ClickHouse read across facets, one topic or outlier per rule's map. */
@@ -66,7 +86,12 @@ export async function tracesTopics(
   );
   const result: Record<
     string,
-    { facet: string; topic: string | null; runIds: string[] }[]
+    {
+      facet: string;
+      topicId: string | null;
+      topic: string | null;
+      runIds: string[];
+    }[]
   > = {};
   for (const facet of facets)
     for (const row of rows) {
@@ -77,16 +102,21 @@ export async function tracesTopics(
           : `${row.facetId}:run:${row.runId}`,
       );
       // A null topic is an outlier: the map analysed the trace without assigning one.
-      const topic = row.topicId === "" ? null : map?.names.get(row.topicId);
+      const topicId = row.topicId === "" ? null : row.topicId;
+      const topic = topicId === null ? null : map?.names.get(topicId);
       if (!map || topic === undefined) continue;
       const items = result[row.traceId] ?? [];
       result[row.traceId] = items;
-      // Rules can each assign a topic; a name several rules assigned shows once, listing each map.
+      // Rules can each assign a topic; a stable topic ID several rules assigned shows once, listing each map.
       const same = items.find(
-        (item) => item.facet === facet.name && item.topic === topic,
+        (item) =>
+          item.facet === facet.name &&
+          item.topicId === topicId &&
+          item.topic === topic,
       );
       if (same) same.runIds.push(map.runId);
-      else items.push({ facet: facet.name, topic, runIds: [map.runId] });
+      else
+        items.push({ facet: facet.name, topicId, topic, runIds: [map.runId] });
     }
   return result;
 }

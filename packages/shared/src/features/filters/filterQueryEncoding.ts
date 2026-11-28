@@ -59,7 +59,9 @@ export function splitOnUnescapedPipe(str: string): string[] {
 // Generic helpers for reusable encoding/decoding across feature areas
 export type GenericFilterOptions = Record<
   string,
-  string[] | (string | SingleValueOption)[] | Record<string, string[]>
+  | string[]
+  | (string | SingleValueOption)[]
+  | Record<string, (string | SingleValueOption)[]>
 >;
 
 // Pure helper: compute UI-selected values from a filter entry and available values

@@ -113,7 +113,7 @@ export function ScatterTopicsView({
       topicId === null || topicId === selectedTopicId
         ? []
         : pickedTopicFilters(
-            searchFacet,
+            facet.name,
             topicId === UNASSIGNED_TOPIC_ID ? null : topicId,
           );
     traceFilters.setSearchQuery(null);
@@ -296,7 +296,7 @@ export function ScatterTopicsView({
           tracingTopic={
             isSearching || !selected || selected.id === UNASSIGNED_TOPIC_ID
               ? undefined
-              : { facet, name: selected.name }
+              : { facet, topicId: selected.id }
           }
           peekView={peekView}
           tracePanelRef={tracePanelRef}

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 import { type ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { cn } from "@/src/utils/tailwind";
@@ -5,7 +6,6 @@ import { TableSearchBar } from "@/src/features/search-bar/components/TableSearch
 import {
   createTopicTraceRegistry,
   TOPIC_ASSIGNMENT_OPTIONS,
-  topicFilterLabels,
 } from "./topic-trace-filters";
 
 export function TopicsTraceToolbar({
@@ -19,10 +19,15 @@ export function TopicsTraceToolbar({
   traceFields,
   divider = true,
 }: TopicsTraceToolbarProps) {
-  const registry = createTopicTraceRegistry(facetName, {
-    traceFields: Boolean(traceFields),
-  });
-  const topicNames = topicFilterLabels(topics);
+  const hasTraceFields = Boolean(traceFields);
+  const registry = useMemo(
+    () =>
+      createTopicTraceRegistry(facetName, {
+        traceFields: hasTraceFields,
+        topics,
+      }),
+    [facetName, hasTraceFields, topics],
+  );
 
   return (
     <div className={cn("shrink-0", divider ? "border-b p-2" : "px-4 pt-3")}>
@@ -35,7 +40,7 @@ export function TopicsTraceToolbar({
         observed={{
           ...traceFields?.observed,
           topics: [{ value: facetName }],
-          [`topics.${facetName}`]: topicNames.map((value) => ({ value })),
+          [`topics.${facetName}`]: topics.map((topic) => ({ value: topic.id })),
           assignment: TOPIC_ASSIGNMENT_OPTIONS.map((option) => ({
             value: option.displayValue,
           })),

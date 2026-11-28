@@ -265,7 +265,15 @@ function lowerSingle(
         ? `${namespace}.${quoteIfNeeded(filter.key)}`
         : scorePathOf(filter.column, filter.key, registry);
       if (path === null || filter.value.length === 0) return null;
-      const node = filterNode(path, "=", filter.value);
+      const displayValueByFilterValue =
+        registry.keyedOptionMaps?.[filter.column]?.[filter.key]
+          ?.displayValueByFilterValue;
+      const values = displayValueByFilterValue
+        ? filter.value.map(
+            (value) => displayValueByFilterValue.get(value) ?? value,
+          )
+        : filter.value;
+      const node = filterNode(path, "=", values);
       return filter.operator === "none of" ? negate(node) : node;
     }
     case "null": {

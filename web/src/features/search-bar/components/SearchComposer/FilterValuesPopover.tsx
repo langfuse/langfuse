@@ -40,12 +40,9 @@ export function FilterValuesPopover({
   const ref = registry.resolveField(state.template.key);
   const { optionKey, requestable } = optionSource(ref, state.template.key);
   const optionValues = observed?.[optionKey] ?? [];
+  const displayValueByFilterValue = resolveDisplayValueMap(ref, registry);
   const displayValues = optionValues.map((option) => ({
-    value:
-      ref?.type === "field"
-        ? (ref.field.displayValueByFilterValue?.get(option.value) ??
-          option.value)
-        : option.value,
+    value: displayValueByFilterValue?.get(option.value) ?? option.value,
     count: option.count,
   }));
   const available = displayValues.map((option) => option.value);
@@ -169,4 +166,15 @@ function optionSource(
       requestable: false,
     };
   return { optionKey: key, requestable: false };
+}
+
+function resolveDisplayValueMap(
+  ref: ReturnType<FieldRegistry["resolveField"]>,
+  registry: FieldRegistry,
+): ReadonlyMap<string, string> | undefined {
+  if (ref?.type === "field") return ref.field.displayValueByFilterValue;
+  if (ref?.type === "keyedOptions")
+    return registry.keyedOptionMaps?.[ref.column]?.[ref.key]
+      ?.displayValueByFilterValue;
+  return undefined;
 }

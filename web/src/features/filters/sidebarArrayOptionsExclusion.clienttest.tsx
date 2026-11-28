@@ -708,3 +708,65 @@ describe("stringOptions facet operator plumbing (LFE-10717)", () => {
     expect(getFilterState()).toEqual([]);
   });
 });
+
+describe("useSidebarFilterState keyed legacy display values", () => {
+  it("resolves legacy topic names to canonical stable IDs without duplicating available options", () => {
+    const config: FilterConfig = {
+      tableName: "observations",
+      columnDefinitions: [
+        {
+          id: "topics",
+          name: "Topics",
+          type: "categoryOptions",
+          options: [],
+          internal: "topics",
+        },
+      ],
+      facets: [
+        {
+          type: "keyValue",
+          column: "topics",
+          label: "Topics",
+        },
+      ],
+    };
+    const options = {
+      topics: {
+        Intent: [
+          { value: "t-billing", displayValue: "Billing" },
+          { value: "t-refunds", displayValue: "Refunds" },
+        ],
+      },
+    };
+    const { result } = renderHook(() =>
+      useSidebarFilterState(config, options, { stateLocation: "memory" }),
+    );
+
+    act(() => {
+      result.current.setFilterState([
+        {
+          type: "categoryOptions",
+          column: "topics",
+          key: "Intent",
+          operator: "any of",
+          value: ["Billing"],
+        },
+      ]);
+    });
+
+    const topicsFacet = result.current.filters.find(
+      (f) => f.type === "keyValue" && f.column === "topics",
+    );
+    expect(topicsFacet?.type).toBe("keyValue");
+    if (topicsFacet?.type !== "keyValue") return;
+    expect(topicsFacet.value).toEqual([
+      { key: "Intent", operator: "any of", value: ["t-billing"] },
+    ]);
+    expect(topicsFacet.availableValues).toEqual({
+      Intent: ["t-billing", "t-refunds"],
+    });
+    expect(topicsFacet.displayByKeyValue).toEqual({
+      Intent: { "t-billing": "Billing", "t-refunds": "Refunds" },
+    });
+  });
+});

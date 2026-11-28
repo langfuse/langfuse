@@ -87,12 +87,16 @@ export function TopicStripe({
       </span>
       <div className="flex h-1.5 min-w-0 flex-1 gap-px overflow-hidden rounded-full">
         {segments.map((segment) => {
-          const topic = segment.kind === "topic" ? segment.name : null;
+          const topicId = segment.kind === "topic" ? segment.topicId : null;
           const name = segmentLabel(segment);
-          const isSelected = topic !== null && selected.has(topic);
+          const isSelected = topicId !== null && selected.has(topicId);
           return (
             <CustomTooltip
-              key={`${segment.kind}-${name}`}
+              key={
+                segment.kind === "topic"
+                  ? `topic-${segment.topicId}`
+                  : `${segment.kind}-${name}`
+              }
               content={
                 <span className="ph-no-capture">
                   {name} · {segment.count.toLocaleString()}
@@ -104,19 +108,19 @@ export function TopicStripe({
                   type="button"
                   {...getTriggerProps({
                     onClick:
-                      topic !== null
+                      topicId !== null
                         ? () => {
                             capture("topics:stripe_toggle", {
                               isSelected: !isSelected,
                               topicCount,
                             });
-                            onToggle(topic);
+                            onToggle(topicId);
                           }
                         : undefined,
                   })}
                   aria-label={`${name}, ${segment.count}`}
-                  aria-pressed={topic !== null ? isSelected : undefined}
-                  aria-disabled={topic === null}
+                  aria-pressed={topicId !== null ? isSelected : undefined}
+                  aria-disabled={topicId === null}
                   style={{
                     flexGrow: segment.count,
                     flexBasis: 0,
@@ -127,7 +131,7 @@ export function TopicStripe({
                   }}
                   className={cn(
                     "focus-visible:ring-ring h-full min-w-1 transition-opacity focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset",
-                    topic !== null
+                    topicId !== null
                       ? "cursor-pointer hover:opacity-70"
                       : "cursor-default",
                     anySelected && !isSelected && "opacity-30",

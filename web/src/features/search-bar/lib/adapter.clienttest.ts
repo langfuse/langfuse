@@ -3,7 +3,11 @@ import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-sta
 import { parse } from "@/src/features/search-bar/lib/langQ";
 import { validateQuery } from "@/src/features/search-bar/lib/validate";
 import type { FilterState } from "@langfuse/shared";
-import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import {
+  createFieldRegistry,
+  EVENTS_FIELD_REGISTRY,
+  withKeyedFieldOptions,
+} from "./fields";
 import { predicateMirrorIssue } from "../__tests__/searchBarInvariants";
 import { planCommit } from "./commit";
 import {
@@ -1609,5 +1613,70 @@ describe("topic filters", () => {
     expect(astToFilterState(v.ast, undefined, registry).filters).toEqual(
       filters,
     );
+  });
+
+  it("maps keyed option display names to stable IDs and renders renamed labels on round-trip", () => {
+    const base = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      keyedOptionNamespaces: { topics: "topics" },
+    });
+    const beforeRename = withKeyedFieldOptions(base, "topics", {
+      Intent: [
+        { value: "topic-1", displayValue: "Billing questions" },
+        { value: "topic-2", displayValue: "Support (topic-2)" },
+        { value: "topic-3", displayValue: "Support (topic-3)" },
+      ],
+    });
+    const parsed = validateQuery(
+      'topics.Intent:("Billing questions" OR "Support (topic-2)")',
+      undefined,
+      beforeRename,
+    );
+    expect(parsed.valid).toBe(true);
+    const { filters } = astToFilterState(parsed.ast, undefined, beforeRename);
+    expect(filters).toEqual([
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["topic-1", "topic-2"],
+      },
+    ]);
+
+    // After a live map refresh renames topic-1, the same FilterState displays the new name.
+    const afterRename = withKeyedFieldOptions(base, "topics", {
+      Intent: [
+        { value: "topic-1", displayValue: "Invoices & billing" },
+        { value: "topic-2", displayValue: "Support" },
+      ],
+    });
+    expect(filterStateToQueryText(filters, {}, afterRename).text).toBe(
+      'topics.Intent:("Invoices & billing" OR Support)',
+    );
+
+    // A deleted or not-yet-loaded ID passes through losslessly.
+    const withUnknown: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["topic-deleted"],
+      },
+    ];
+    const renderedUnknown = filterStateToQueryText(
+      withUnknown,
+      {},
+      afterRename,
+    ).text;
+    expect(renderedUnknown).toBe("topics.Intent:topic-deleted");
+    expect(
+      astToFilterState(
+        parse(renderedUnknown, afterRename).ast,
+        undefined,
+        afterRename,
+      ).filters,
+    ).toEqual(withUnknown);
   });
 });

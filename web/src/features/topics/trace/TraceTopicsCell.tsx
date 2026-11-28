@@ -15,12 +15,14 @@ export function TraceTopicsCell({
   facet,
 }: TraceTopicsCellProps) {
   const topics = useTraceTopicsForRows(projectId, rows);
-  // Several rules can each assign the facet a topic.
-  const topic = topics?.[traceId ?? ""]
-    ?.flatMap((item) =>
-      item.facet === facet && item.topic !== null ? [item.topic] : [],
-    )
-    .join(", ");
+  // Several rules can each assign the facet a topic; deduplicate identical display names.
+  const topic = [
+    ...new Set(
+      topics?.[traceId ?? ""]?.flatMap((item) =>
+        item.facet === facet && item.topic !== null ? [item.topic] : [],
+      ) ?? [],
+    ),
+  ].join(", ");
   return (
     <span className="ph-no-capture block truncate" title={topic}>
       {topic}

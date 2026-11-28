@@ -357,7 +357,7 @@ type TopicTraceListProps = {
   /** Count of the listed traces; null when only the loaded rows are known. */
   totalCount: number | null;
   /** The listed topic, so Open in Tracing can filter by it instead of trace IDs. */
-  tracingTopic?: { facet: Facet; name: string };
+  tracingTopic?: { facet: Facet; topicId: string };
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
   /** Lets a neighbouring panel match this header's height. */

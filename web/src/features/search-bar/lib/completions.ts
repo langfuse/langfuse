@@ -457,10 +457,14 @@ function matchingFilterOptions(
     registry.keyedOptionNamespaces ?? {},
   )) {
     for (const key of observedValues(observed, column)) {
+      const displayMap =
+        registry.keyedOptionMaps?.[column]?.[key.value]
+          ?.displayValueByFilterValue;
       for (const o of observedValues(observed, `${column}.${key.value}`)) {
-        const rank = valueQueryRank(o.value.toLowerCase(), q);
+        const display = displayMap?.get(o.value) ?? o.value;
+        const rank = valueQueryRank(display.toLowerCase(), q);
         if (rank === null) continue;
-        const insert = `${namespace}.${quoteIfNeeded(key.value)}:${serializeValue(o.value)}`;
+        const insert = `${namespace}.${quoteIfNeeded(key.value)}:${serializeValue(display)}`;
         ranked.push({
           rank,
           count: o.count ?? 0,
@@ -1078,13 +1082,19 @@ function valueStageSections(input: ValueStageInput): {
     }
 
     case "keyedOptions": {
+      const displayMap =
+        registry.keyedOptionMaps?.[ref.column]?.[ref.key]
+          ?.displayValueByFilterValue;
       const all = observedValues(observed, `${ref.column}.${ref.key}`).map(
-        (o) => ({
-          id: `value:${o.value}`,
-          kind: "value" as const,
-          label: o.value,
-          value: o.value,
-        }),
+        (o) => {
+          const display = displayMap?.get(o.value) ?? o.value;
+          return {
+            id: `value:${o.value}`,
+            kind: "value" as const,
+            label: display,
+            value: display,
+          };
+        },
       );
       return all.length > 0
         ? {

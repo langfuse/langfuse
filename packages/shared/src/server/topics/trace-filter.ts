@@ -35,8 +35,9 @@ function topicTimeRange(filter: FilterState) {
 
 /**
  * Turns topic filters into ClickHouse conditions on the events query, so membership is
- * resolved inside the same query instead of shipping trace ids. Names map to stable topic
- * ids through each facet's current published map.
+ * resolved inside the same query instead of shipping trace ids. Filter values are stable
+ * topic ids (falling back to topic names for legacy URLs/saved views) resolved against
+ * each facet's current published maps.
  */
 export async function topicFilterConditions(
   projectId: string,
@@ -63,12 +64,22 @@ export async function topicFilterConditions(
   );
   return topicFilters.flatMap((topicFilter, index) => {
     const facet = facets.find((item) => item.name === topicFilter.key);
-    // Rules map a facet separately; a name matches in any of them.
-    const topicIds = maps
+    const facetTopics = maps
       .filter((map) => map.facetId === facet?.id)
-      .flatMap((map) => map.topics)
-      .filter((topic) => topicFilter.value.includes(topic.name))
-      .map((topic) => topic.topicId);
+      .flatMap((map) => map.topics);
+    const idSet = new Set(facetTopics.map((topic) => topic.topicId));
+    // Prefer exact stable topic ID matches; fall back to topic names for legacy links or bare-name queries.
+    const topicIds = [
+      ...new Set(
+        topicFilter.value.flatMap((value) =>
+          idSet.has(value)
+            ? [value]
+            : facetTopics
+                .filter((topic) => topic.name === value)
+                .map((topic) => topic.topicId),
+        ),
+      ),
+    ];
     const negated = topicFilter.operator === "none of";
     if (!facet || topicIds.length === 0)
       return negated ? [] : [{ query: "0 = 1", params: {} }];

@@ -9,7 +9,7 @@ import {
   topicStripeSegments,
 } from "./topic-stripe";
 
-/** Facet name → topic names, for the sidebar facet and the search bar. */
+/** Facet name → topic options (`{ value, displayValue }`), for the sidebar facet and the search bar. */
 export function useTopicFilterOptions(projectId: string, enabled: boolean) {
   return api.topics.filterOptions.useQuery(
     { projectId },
@@ -43,8 +43,13 @@ export function useTopicStripe({
   projectId: string;
   enabled: boolean;
   rows: { traceId?: string | null; startTime: Date }[];
-  /** Facet name → its published topic names; picks the facet. */
-  facetTopics: Record<string, string[]> | undefined;
+  /** Facet name → its published topic options; picks the facet and supplies all known topic IDs/names. */
+  facetTopics:
+    | Record<
+        string,
+        readonly { value: string; displayValue: string; name?: string }[]
+      >
+    | undefined;
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
 }) {
@@ -60,7 +65,24 @@ export function useTopicStripe({
   );
   if (!enabled || !facet || !map || !topicsByTrace) return null;
   const segments = topicStripeSegments({ rows, topicsByTrace, facet, map });
-  if (!segments.some((segment) => segment.kind === "topic")) return null;
+  const stripeTopics = segments.filter((segment) => segment.kind === "topic");
+  if (stripeTopics.length === 0) return null;
+  // Combine all published topics for this facet (including off-page/folded ones) with visible stripe topics,
+  // keeping distinct `(topicId, name)` pairs so a stripe segment's own name is never clobbered across maps.
+  const knownTopics: { topicId: string; name: string }[] = [];
+  const seenPairs = new Set<string>();
+  const addKnownTopic = (topicId: string, name: string) => {
+    const key = `${topicId}\0${name}`;
+    if (seenPairs.has(key)) return;
+    seenPairs.add(key);
+    knownTopics.push({ topicId, name });
+  };
+  for (const option of facetTopics?.[facet] ?? []) {
+    addKnownTopic(option.value, option.name ?? option.displayValue);
+  }
+  for (const segment of stripeTopics) {
+    addKnownTopic(segment.topicId, segment.name);
+  }
   const query = new URLSearchParams({
     ...(map.ruleId ? topicMapQuery({ kind: "rule", id: map.ruleId }) : {}),
     topicFacet: map.facetId,
@@ -68,9 +90,9 @@ export function useTopicStripe({
   return {
     facet,
     segments,
-    selected: selectedStripeTopics(filters, facet),
+    selected: selectedStripeTopics(filters, facet, knownTopics),
     onToggle: (topic: string) =>
-      onFiltersChange(toggleStripeTopic(filters, facet, topic)),
+      onFiltersChange(toggleStripeTopic(filters, facet, topic, knownTopics)),
     details: {
       ...topicStripeCoverage({ rows, topicsByTrace, facet, map }),
       mapName: map.mapName,

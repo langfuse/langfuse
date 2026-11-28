@@ -35,7 +35,7 @@ export function orderByFacetIds<T extends { facetId: string }>(
   );
 }
 
-/** Tracing filter column: key is the facet name, values are topic names. */
+/** Topic filter column: key is the facet name, values are stable topic IDs (with name fallback for legacy URLs). */
 const TOPIC_FILTER_COLUMN = "topics";
 
 export function isTopicFilter<T extends { type: string; column: string }>(
@@ -44,6 +44,55 @@ export function isTopicFilter<T extends { type: string; column: string }>(
   return (
     filter.type === "categoryOptions" && filter.column === TOPIC_FILTER_COLUMN
   );
+}
+
+/**
+ * Builds labeled topic filter options keyed by stable topic ID. Unique names
+ * display as-is; duplicate names append `(<qualifier>)` when provided (e.g. a
+ * rule name across multi-rule maps) and fall back to `(<id>)` only when a
+ * collision still remains, so filter display labels stay 1:1 with topic IDs.
+ */
+export function buildTopicFilterOptions(
+  topics: readonly { id: string; name: string; qualifier?: string }[],
+): { value: string; displayValue: string }[] {
+  const unique: { id: string; name: string; qualifier?: string }[] = [];
+  const seenIds = new Set<string>();
+  for (const topic of topics) {
+    if (seenIds.has(topic.id)) continue;
+    seenIds.add(topic.id);
+    unique.push(topic);
+  }
+  const nameCounts = new Map<string, number>();
+  for (const topic of unique) {
+    nameCounts.set(topic.name, (nameCounts.get(topic.name) ?? 0) + 1);
+  }
+  const candidates = unique.map((topic) => {
+    if ((nameCounts.get(topic.name) ?? 0) === 1) return topic.name;
+    return topic.qualifier ? `${topic.name} (${topic.qualifier})` : null;
+  });
+  const candidateCounts = new Map<string, number>();
+  for (const candidate of candidates) {
+    if (candidate !== null) {
+      candidateCounts.set(candidate, (candidateCounts.get(candidate) ?? 0) + 1);
+    }
+  }
+  const taken = new Set(
+    candidates.filter(
+      (candidate): candidate is string =>
+        candidate !== null && candidateCounts.get(candidate) === 1,
+    ),
+  );
+  return unique.map((topic, index) => {
+    const candidate = candidates[index];
+    if (candidate !== null && candidateCounts.get(candidate) === 1) {
+      return { value: topic.id, displayValue: candidate };
+    }
+    const base = candidate ?? topic.name;
+    let displayValue = `${base} (${topic.id})`;
+    while (taken.has(displayValue)) displayValue += ` (${topic.id})`;
+    taken.add(displayValue);
+    return { value: topic.id, displayValue };
+  });
 }
 
 /** Batch jobs read without topic membership, so they must not drop a topic filter silently. */

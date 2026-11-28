@@ -4,6 +4,7 @@ import type { FilterState } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 import {
   TOPIC_STRIPE_SLOTS,
+  selectedStripeTopics,
   toggleStripeTopic,
   topicStripeCoverage,
   topicStripeSegments,
@@ -22,18 +23,54 @@ describe("topicStripeSegments", () => {
       ],
       topicsByTrace: {
         one: [
-          { facet: "Intent", topic: "Billing", runIds: ["map-a"] },
-          { facet: "Tone", topic: "Angry", runIds: ["map-t"] },
+          {
+            facet: "Intent",
+            topicId: "t-billing",
+            topic: "Billing",
+            runIds: ["map-a"],
+          },
+          {
+            facet: "Tone",
+            topicId: "t-angry",
+            topic: "Angry",
+            runIds: ["map-t"],
+          },
         ],
-        two: [{ facet: "Intent", topic: "Refunds", runIds: ["map-a"] }],
-        three: [{ facet: "Tone", topic: "Calm", runIds: ["map-t"] }],
+        two: [
+          {
+            facet: "Intent",
+            topicId: "t-refunds",
+            topic: "Refunds",
+            runIds: ["map-a"],
+          },
+        ],
+        three: [
+          {
+            facet: "Tone",
+            topicId: "t-calm",
+            topic: "Calm",
+            runIds: ["map-t"],
+          },
+        ],
       },
       facet: "Intent",
       map: { runId: "map-a" },
     });
     expect(segments).toEqual([
-      { kind: "topic", name: "Billing", count: 1, slot: 0 },
-      { kind: "topic", name: "Refunds", count: 1, slot: 1 },
+      {
+        kind: "topic",
+        topicId: "t-billing",
+        name: "Billing",
+        count: 1,
+        slot: 0,
+      },
+      {
+        kind: "topic",
+        topicId: "t-refunds",
+        name: "Refunds",
+        count: 1,
+        slot: 1,
+      },
       { kind: "unassigned", count: 1 },
     ]);
   });
@@ -47,19 +84,42 @@ describe("topicStripeSegments", () => {
       ],
       topicsByTrace: {
         both: [
-          { facet: "Intent", topic: "Billing", runIds: ["map-a"] },
-          { facet: "Intent", topic: "Enterprise billing", runIds: ["map-b"] },
+          {
+            facet: "Intent",
+            topicId: "t-billing",
+            topic: "Billing",
+            runIds: ["map-a"],
+          },
+          {
+            facet: "Intent",
+            topicId: "t-enterprise",
+            topic: "Enterprise billing",
+            runIds: ["map-b"],
+          },
         ],
         "other-only": [
-          { facet: "Intent", topic: "Enterprise billing", runIds: ["map-b"] },
+          {
+            facet: "Intent",
+            topicId: "t-enterprise",
+            topic: "Enterprise billing",
+            runIds: ["map-b"],
+          },
         ],
-        outlier: [{ facet: "Intent", topic: null, runIds: ["map-a"] }],
+        outlier: [
+          { facet: "Intent", topicId: null, topic: null, runIds: ["map-a"] },
+        ],
       },
       facet: "Intent",
       map: { runId: "map-a" },
     };
     expect(topicStripeSegments(input)).toEqual([
-      { kind: "topic", name: "Billing", count: 1, slot: 0 },
+      {
+        kind: "topic",
+        topicId: "t-billing",
+        name: "Billing",
+        count: 1,
+        slot: 0,
+      },
       { kind: "unassigned", count: 2 },
     ]);
     // The map's outlier counts as analysed; a trace only another map saw does not.
@@ -70,17 +130,57 @@ describe("topicStripeSegments", () => {
     const segments = topicStripeSegments({
       rows: ["a", "b", "c", "d"].map((traceId) => ({ traceId })),
       topicsByTrace: {
-        a: [{ facet: "Intent", topic: "Billing", runIds: ["map-a"] }],
-        b: [{ facet: "Intent", topic: "Billing", runIds: ["map-a"] }],
-        c: [{ facet: "Intent", topic: "Billing", runIds: ["map-a"] }],
-        d: [{ facet: "Intent", topic: "Refunds", runIds: ["map-a", "map-b"] }],
+        a: [
+          {
+            facet: "Intent",
+            topicId: "t-billing",
+            topic: "Billing",
+            runIds: ["map-a"],
+          },
+        ],
+        b: [
+          {
+            facet: "Intent",
+            topicId: "t-billing",
+            topic: "Billing",
+            runIds: ["map-a"],
+          },
+        ],
+        c: [
+          {
+            facet: "Intent",
+            topicId: "t-billing",
+            topic: "Billing",
+            runIds: ["map-a"],
+          },
+        ],
+        d: [
+          {
+            facet: "Intent",
+            topicId: "t-refunds",
+            topic: "Refunds",
+            runIds: ["map-a", "map-b"],
+          },
+        ],
       },
       facet: "Intent",
       map: { runId: "map-a" },
     });
     expect(segments).toEqual([
-      { kind: "topic", name: "Billing", count: 3, slot: 0 },
-      { kind: "topic", name: "Refunds", count: 1, slot: 1 },
+      {
+        kind: "topic",
+        topicId: "t-billing",
+        name: "Billing",
+        count: 3,
+        slot: 0,
+      },
+      {
+        kind: "topic",
+        topicId: "t-refunds",
+        name: "Refunds",
+        count: 1,
+        slot: 1,
+      },
     ]);
   });
 
@@ -92,9 +192,16 @@ describe("topicStripeSegments", () => {
     const segments = topicStripeSegments({
       rows: names.map((name) => ({ traceId: name })),
       topicsByTrace: Object.fromEntries(
-        names.map((name) => [
+        names.map((name, i) => [
           name,
-          [{ facet: "Intent", topic: name, runIds: ["map-a"] }],
+          [
+            {
+              facet: "Intent",
+              topicId: `t-${i}`,
+              topic: name,
+              runIds: ["map-a"],
+            },
+          ],
         ]),
       ),
       facet: "Intent",
@@ -161,5 +268,106 @@ describe("toggleStripeTopic", () => {
       ...other,
       second,
     ]);
+  });
+
+  it("resolves legacy topic names when computing selection and toggling off", () => {
+    const stripeTopics = [
+      { topicId: "t-billing", name: "Billing" },
+      { topicId: "t-support-1", name: "Support" },
+      { topicId: "t-support-2", name: "Support" },
+    ];
+    const legacyBilling: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing"],
+      },
+    ];
+    expect(selectedStripeTopics(legacyBilling, "Intent", stripeTopics)).toEqual(
+      new Set(["t-billing"]),
+    );
+    expect(
+      toggleStripeTopic(legacyBilling, "Intent", "t-billing", stripeTopics),
+    ).toEqual([]);
+
+    const legacyDuplicate: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Support", "Unloaded"],
+      },
+    ];
+    expect(
+      selectedStripeTopics(legacyDuplicate, "Intent", stripeTopics),
+    ).toEqual(new Set(["t-support-1", "t-support-2", "Unloaded"]));
+    expect(
+      toggleStripeTopic(legacyDuplicate, "Intent", "t-support-1", stripeTopics),
+    ).toEqual([
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["t-support-2", "Unloaded"],
+      },
+    ]);
+
+    // Toggling an unrelated segment leaves an existing legacy name untouched (so off-page/folded matches stay intact).
+    expect(
+      toggleStripeTopic(legacyDuplicate, "Intent", "t-billing", stripeTopics),
+    ).toEqual([
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Support", "Unloaded", "t-billing"],
+      },
+    ]);
+    const billingAndSupport: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Billing", "Support"],
+      },
+    ];
+    expect(
+      toggleStripeTopic(billingAndSupport, "Intent", "t-billing", stripeTopics),
+    ).toEqual([
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Support"],
+      },
+    ]);
+
+    // When two maps give the same stable topic ID different names, either legacy name highlights and toggles off.
+    const crossMapTopics = [
+      { topicId: "t-shared", name: "Billing" },
+      { topicId: "t-shared", name: "Invoices" },
+    ];
+    const legacyStripeName: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "topics",
+        key: "Intent",
+        operator: "any of",
+        value: ["Invoices"],
+      },
+    ];
+    expect(
+      selectedStripeTopics(legacyStripeName, "Intent", crossMapTopics),
+    ).toEqual(new Set(["t-shared"]));
+    expect(
+      toggleStripeTopic(legacyStripeName, "Intent", "t-shared", crossMapTopics),
+    ).toEqual([]);
   });
 });

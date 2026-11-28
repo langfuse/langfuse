@@ -205,6 +205,21 @@ describe("Topics facet-local filters", () => {
     expect(getSearch()).toBe("");
   });
 
+  it("preserves existing v2 localStorage snapshots with legacy topic names and search queries", () => {
+    localStorage.setItem(
+      "topics-trace-filters-v2",
+      JSON.stringify({
+        [JSON.stringify(["project", "intent"])]: {
+          filter: encodeFiltersGeneric([topic]),
+          search: "invoice",
+        },
+      }),
+    );
+    const { result } = setup();
+    expect(result.current.filters).toEqual([topic]);
+    expect(result.current.searchQuery).toBe("invoice");
+  });
+
   it("ignores malformed cached state", () => {
     localStorage.setItem(
       "topics-trace-filters-v2",

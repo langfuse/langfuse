@@ -503,15 +503,23 @@ function lowerFilter(
     case "metadata":
       lowerMetadata(node, ref.key, negated, conditions, errors, ref.column);
       break;
-    case "keyedOptions":
+    case "keyedOptions": {
+      const filterValueByDisplayValue =
+        registry.keyedOptionMaps?.[ref.column]?.[ref.key]
+          ?.filterValueByDisplayValue;
       conditions.push({
         type: "categoryOptions",
         column: ref.column,
         key: ref.key,
         operator: negated ? "none of" : "any of",
-        value: node.values,
+        value: filterValueByDisplayValue
+          ? node.values.map(
+              (value) => filterValueByDisplayValue.get(value) ?? value,
+            )
+          : node.values,
       });
       break;
+    }
     case "scores":
       if (registry.targeting?.scoreTypesError) {
         errors.push(registry.targeting.scoreTypesError);

@@ -1,11 +1,15 @@
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 import { type TopicTraceQuery } from "./facet-topics";
 import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
-import { topicRuleFilterError } from "@langfuse/shared/topics";
+import {
+  buildTopicFilterOptions,
+  topicRuleFilterError,
+} from "@langfuse/shared/topics";
 import {
   createFieldRegistry,
   fieldRegistryFromColumns,
   withFieldOptions,
+  withKeyedFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
 import { quoteIfNeeded } from "@/src/features/search-bar/lib/quoting";
 import { topicsFilterRegistry } from "./useTopicTraceFilter";
@@ -21,9 +25,12 @@ export function createTopicTraceRegistry(
   facetName?: string,
   {
     traceFields = false,
+    topics,
   }: {
     /** Adds the trace fields a rule filters on, matched on the server. */
     traceFields?: boolean;
+    /** Hydrates stable-ID ↔ display-name options for `topics.<facetName>`. */
+    topics?: readonly { id: string; name: string }[];
   } = {},
 ) {
   const topicsColumn: ColumnDefinition = {
@@ -110,7 +117,16 @@ export function createTopicTraceRegistry(
       ];
     },
   });
-  return withFieldOptions(registry, "assignment", TOPIC_ASSIGNMENT_OPTIONS);
+  const withAssignment = withFieldOptions(
+    registry,
+    "assignment",
+    TOPIC_ASSIGNMENT_OPTIONS,
+  );
+  return facetName && topics
+    ? withKeyedFieldOptions(withAssignment, "topics", {
+        [facetName]: buildTopicFilterOptions(topics),
+      })
+    : withAssignment;
 }
 
 const TOPIC_COLUMNS = new Set(["topics", "assignment"]);
@@ -127,7 +143,7 @@ export function splitTopicTraceFilters(
 
 /** One topic picked in the list, treemap, or scatter, as a search-bar filter; null picks unassigned traces. */
 export function pickedTopicFilters(
-  facet: TopicFilterFacet,
+  facetName: string,
   topicId: string | null,
 ): FilterState {
   if (topicId === null)
@@ -139,25 +155,15 @@ export function pickedTopicFilters(
         value: ["assigned"],
       },
     ];
-  const label = topicFilterIndex(facet.topics).labelById.get(topicId);
-  if (label === undefined) return [];
   return [
     {
       column: "topics",
       type: "categoryOptions",
-      key: facet.name,
+      key: facetName,
       operator: "any of",
-      value: [label],
+      value: [topicId],
     },
   ];
-}
-
-/** Display/filter values for a facet's topics, appending `(<stable_id>)` only when names collide. */
-export function topicFilterLabels(
-  topics: readonly { id: string; name: string }[],
-): string[] {
-  const { labelById } = topicFilterIndex(topics);
-  return topics.map((topic) => labelById.get(topic.id) ?? topic.name);
 }
 
 /** The topic the search bar holds when it is exactly one picked topic on this facet. */
@@ -177,7 +183,7 @@ export function pickedTopicId(
   ) {
     const matches = resolveTopicFilterValue(
       filter.value[0]!,
-      topicFilterIndex(facet.topics),
+      topicFilterLookup(facet.topics),
     );
     return matches.length === 1 ? matches[0]! : null;
   }
@@ -199,7 +205,7 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
   facet: TopicFilterFacet,
 ): Row[] {
   const phrase = searchQuery?.trim() ?? "";
-  const index = topicFilterIndex(facet.topics);
+  const lookup = topicFilterLookup(facet.topics);
   return rows.filter((row) => {
     if (phrase && !matchesSearch(row, phrase)) return false;
     return splitTopicTraceFilters(filters)[0].every((filter) => {
@@ -208,7 +214,7 @@ export function filterTopicTraces<Row extends TopicTraceRow>(
           return false;
         const matchedIds = new Set(
           filter.value.flatMap((value) =>
-            resolveTopicFilterValue(value, index),
+            resolveTopicFilterValue(value, lookup),
           ),
         );
         const matches = row.topicId !== null && matchedIds.has(row.topicId);
@@ -280,7 +286,7 @@ export function topicTraceQuery(
   const [topicFilters, traceFilters] = splitTopicTraceFilters(filters);
   if (traceFilters.length > 0) query.filter = traceFilters;
 
-  const index = topicFilterIndex(facet.topics);
+  const lookup = topicFilterLookup(facet.topics);
 
   let include: Set<string> | undefined;
   const exclude = new Set<string>();
@@ -289,7 +295,7 @@ export function topicTraceQuery(
     if (filter.type !== "categoryOptions" || filter.key !== facet.name)
       return null;
     const ids = filter.value.flatMap((value) =>
-      resolveTopicFilterValue(value, index),
+      resolveTopicFilterValue(value, lookup),
     );
     if (filter.operator === "none of") {
       ids.forEach((id) => exclude.add(id));
@@ -356,50 +362,40 @@ export function getTopicAssignment(outcome: string) {
   return "no_topic";
 }
 
-type TopicFilterIndex = {
-  labelById: Map<string, string>;
-  idByLabel: Map<string, string>;
+type TopicFilterLookup = {
+  idSet: Set<string>;
+  idByDisplayValue: Map<string, string>;
   idsByName: Map<string, string[]>;
 };
 
-function topicFilterIndex(
+function topicFilterLookup(
   topics: readonly { id: string; name: string }[],
-): TopicFilterIndex {
-  const nameCounts = new Map<string, number>();
-  for (const topic of topics) {
-    nameCounts.set(topic.name, (nameCounts.get(topic.name) ?? 0) + 1);
-  }
-  const taken = new Set(
-    topics
-      .filter((topic) => (nameCounts.get(topic.name) ?? 0) === 1)
-      .map((topic) => topic.name),
-  );
-  const labelById = new Map<string, string>();
-  const idByLabel = new Map<string, string>();
+): TopicFilterLookup {
+  const idSet = new Set<string>();
   const idsByName = new Map<string, string[]>();
   for (const topic of topics) {
+    idSet.add(topic.id);
     const ids = idsByName.get(topic.name) ?? [];
     ids.push(topic.id);
     idsByName.set(topic.name, ids);
-    const duplicate = (nameCounts.get(topic.name) ?? 0) > 1;
-    let label = duplicate ? `${topic.name} (${topic.id})` : topic.name;
-    if (duplicate) {
-      while (taken.has(label)) label += ` (${topic.id})`;
-      taken.add(label);
-    }
-    labelById.set(topic.id, label);
-    idByLabel.set(label, topic.id);
   }
-  return { labelById, idByLabel, idsByName };
+  const idByDisplayValue = new Map(
+    buildTopicFilterOptions(topics).map((option) => [
+      option.displayValue,
+      option.value,
+    ]),
+  );
+  return { idSet, idByDisplayValue, idsByName };
 }
 
 function resolveTopicFilterValue(
   value: string,
-  index: TopicFilterIndex,
+  lookup: TopicFilterLookup,
 ): string[] {
-  const exactId = index.idByLabel.get(value);
-  if (exactId !== undefined) return [exactId];
-  return index.idsByName.get(value) ?? [];
+  if (lookup.idSet.has(value)) return [value];
+  const byDisplay = lookup.idByDisplayValue.get(value);
+  if (byDisplay !== undefined) return [byDisplay];
+  return lookup.idsByName.get(value) ?? [];
 }
 
 type TopicFilterFacet = {
