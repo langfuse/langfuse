@@ -137,6 +137,16 @@ describe("prepareTimeAxis", () => {
     expect(axis.formatTooltip("1")).toBe("1");
   });
 
+  it("counts emoji as whole characters in the category label cap", () => {
+    const atLimit = `${"a".repeat(23)}🚀`;
+    const overLimit = `${"b".repeat(22)}👩🏽‍🚀ab`;
+    const axis = prepareTimeAxis([atLimit, overLimit]);
+
+    expect(axis.formatTick(atLimit)).toBe(atLimit);
+    expect(axis.formatTick(overLimit)).toBe(`${"b".repeat(22)}👩🏽‍🚀…`);
+    expect(axis.formatTooltip(overLimit)).toBe(overLimit);
+  });
+
   it("categorical axis thins width-aware (equidistant), not by a numeric index step (LFE-10583)", () => {
     // The smear bug: a numeric recharts `interval` shows every Nth tick BY INDEX
     // and skips the label-collision test, so long entity names overlap however
@@ -180,6 +190,17 @@ describe("prepareTimeAxis", () => {
 
     // …while the tooltip carries the full, untruncated name (nothing lost).
     expect(axis.formatTooltip(runs[1])).toBe(runs[1]);
+  });
+
+  it("keeps whole Unicode code points in categorical ticks", () => {
+    const prefix = "a".repeat(22);
+    const atLimit = `${prefix}🚀x`;
+    const longLabel = `${atLimit}y`;
+    const axis = prepareTimeAxis([atLimit, longLabel], 6);
+
+    expect(axis.formatTick(longLabel)).toBe(`${prefix}🚀…`);
+    expect(axis.formatTick(atLimit)).toBe(atLimit);
+    expect(axis.formatTooltip(longLabel)).toBe(longLabel);
   });
 
   it("short categorical labels are not truncated and time ticks stay flat + numeric", () => {

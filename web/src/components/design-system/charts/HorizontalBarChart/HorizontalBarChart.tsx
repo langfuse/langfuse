@@ -10,6 +10,10 @@ import {
 import type { BarChartDatum } from "@/src/components/design-system/internal/charts/BarChartCore";
 import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
+import {
+  chartLabelUnits,
+  truncateChartLabelToFit,
+} from "@/src/components/design-system/internal/charts/fns/chartLabels";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
 
@@ -162,19 +166,19 @@ export function HorizontalBarChart({
                       plotWidth - barWidth - 24,
                     );
                     const labelOutside =
-                      insideLabelRoom < datum.label.length * CHARACTER_WIDTH &&
+                      insideLabelRoom <
+                        chartLabelUnits(datum.label) * CHARACTER_WIDTH &&
                       outsideLabelRoom > insideLabelRoom;
                     const labelRoom = labelOutside
                       ? outsideLabelRoom
                       : insideLabelRoom;
-                    const maxCharacters = Math.floor(
+                    const maxLabelUnits = Math.floor(
                       labelRoom / CHARACTER_WIDTH,
                     );
-                    let visibleLabel = datum.label;
-                    if (maxCharacters < 1) visibleLabel = "";
-                    else if (datum.label.length > maxCharacters) {
-                      visibleLabel = `${datum.label.slice(0, Math.max(0, maxCharacters - 1))}…`;
-                    }
+                    const visibleLabel = truncateChartLabelToFit(
+                      datum.label,
+                      maxLabelUnits,
+                    );
                     const labelX = left + barWidth + 8;
                     const inactive =
                       activeIndex !== undefined && activeIndex !== index;

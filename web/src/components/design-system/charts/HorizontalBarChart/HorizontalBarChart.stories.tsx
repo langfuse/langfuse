@@ -25,6 +25,21 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const LongEmojiLabel = meta.story({
+  args: {
+    data: [
+      { label: "🚀".repeat(10), value: 12 },
+      { label: "Baseline", value: 24 },
+    ],
+  },
+  parameters: { layout: "centered" },
+  render: (args) => (
+    <div className="h-40 w-56">
+      <HorizontalBarChart {...args} />
+    </div>
+  ),
+});
+
 export const SideTooltip = meta.story({
   name: "(Test) Side Tooltip",
   play: async ({ canvasElement }) => {
