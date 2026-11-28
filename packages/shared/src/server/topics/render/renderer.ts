@@ -1,18 +1,18 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import type { Observation } from "../../domain/observations";
+import type { Observation } from "../../../domain/observations";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
-} from "../../utils/normalized-io";
-import { normalizeIO } from "../normalized-io/parser";
-import { orderObservations } from "./ordering";
-import { assembleTranscript } from "./transcript";
-import { isExecutionIssue } from "./context";
-import type { Transcript } from "./types";
+} from "../../../utils/normalized-io";
+import { normalizeIO } from "../../normalized-io/parser";
+import { orderObservations } from "../../transcript/ordering";
+import { assembleTranscript } from "../../transcript/transcript";
+import { isExecutionIssue } from "../../transcript/context";
+import type { Transcript } from "../../transcript/types";
 import {
   transcriptRenderConfigSchema,
   type TranscriptRenderConfig,
-} from "./topics-renderer-config";
+} from "./renderer-config";
 
 export const transcriptBlockTypes = [
   "user",

@@ -169,21 +169,6 @@ export { toToolColumns } from "./normalized-io/projections/tool-call-columns";
 export { toEvalVariables } from "./transcript/eval-threads";
 export { orderObservations } from "./transcript/ordering";
 export { assembleTranscript } from "./transcript/transcript";
-export {
-  redactModelPayload,
-  renderTranscript,
-} from "./transcript/topics-renderer";
-export { renderTranscriptFromObservations } from "./transcript/topics-renderer";
-export {
-  prepareAssembledTopicTranscript,
-  renderStoredTopicText,
-  TOPICS_TEXT_VERSION,
-} from "./transcript/topics-model-input";
-export { transcriptBlockTypes } from "./transcript/topics-renderer";
-export { topicsTranscriptConfig } from "./transcript/topics-renderer-config";
-export { transcriptRenderConfigSchema } from "./transcript/topics-renderer-config";
-export { type TranscriptRenderConfig } from "./transcript/topics-renderer-config";
-export { type TranscriptBlockType } from "./transcript/topics-renderer";
 export { type TranscriptOptions } from "./transcript/types";
 export { type TranscriptObservation } from "./transcript/types";
 export { type ThreadMessage } from "./transcript/types";

@@ -172,7 +172,7 @@ Like temporary span-eval inputs, these objects have no ingestion deletion refere
 
 The reader groups rows by project and trace. It assembles a trace when the pair changes and flushes the last trace only after successful end of stream. A stream error discards the partial final trace while draining already accepted work. Completion covers that query window, not future arrivals. Preserve exact tenant and trace boundaries when changing the reader.
 
-Events dispatch assembles each trace with `assembleTranscriptContext`; the [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns transcript semantics. It supplies both the conversation transcript and execution issues for storage. The per-trace Topics job reads the stored transcript and applies [its own model projection](../../../../packages/shared/src/server/transcript/topics-model-input.ts). Topics uses local token counts to enforce its [model input budgets](../topics/README.md).
+Events dispatch assembles each trace with `assembleTranscriptContext`; the [shared transcript README](../../../../packages/shared/src/server/transcript/README.md) owns transcript semantics. It supplies both the conversation transcript and execution issues for storage. The per-trace Topics job reads the stored transcript and applies [its own model projection](../../../../packages/shared/src/server/topics/render/model-input.ts). Topics uses local token counts to enforce its [model input budgets](../topics/README.md).
 
 ## Capacity measurements
 

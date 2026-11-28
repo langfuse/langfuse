@@ -1,16 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { convertObservation } from "../repositories/observations_converters";
-import { createObservation } from "../test-utils/tracing-factory";
-import { inheritedConversationHistoryFixture } from "./__tests__/fixtures/trace/inherited-conversation-history";
-import { standaloneToolObservationFixture } from "./__tests__/fixtures/trace/standalone-tool-observation";
-import { orderObservations } from "./ordering";
-import {
-  renderTranscript,
-  renderTranscriptFromObservations,
-} from "./topics-renderer";
-import { topicsTranscriptConfig } from "./topics-renderer-config";
-import { assembleTranscript } from "./transcript";
-import type { Transcript } from "./types";
+import { convertObservation } from "../../repositories/observations_converters";
+import { createObservation } from "../../test-utils/tracing-factory";
+import { inheritedConversationHistoryFixture } from "../../transcript/__tests__/fixtures/trace/inherited-conversation-history";
+import { standaloneToolObservationFixture } from "../../transcript/__tests__/fixtures/trace/standalone-tool-observation";
+import { orderObservations } from "../../transcript/ordering";
+import { renderTranscript, renderTranscriptFromObservations } from "./renderer";
+import { topicsTranscriptConfig } from "./renderer-config";
+import { assembleTranscript } from "../../transcript/transcript";
+import type { Transcript } from "../../transcript/types";
 
 const observation = (
   id: string,
