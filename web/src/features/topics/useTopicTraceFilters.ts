@@ -8,7 +8,7 @@ import { createTopicTraceRegistry } from "./topic-trace-filters";
 import { resolveTopicFacetId } from "./topic-facet-selection";
 
 const columns = [
-  ...createTopicTraceRegistry([], [], { traceFields: true }).columns,
+  ...createTopicTraceRegistry(undefined, { traceFields: true }).columns,
 ];
 const snapshotSchema = z.object({
   filter: z.string(),
@@ -30,7 +30,7 @@ export function useTopicTraceFilters(
   const [facetId, setFacetId] = useQueryParam("topicFacet", StringParam);
   const selectedFacetId = resolveTopicFacetId(facets, facetId ?? undefined);
   const [stored, setStored] = useLocalStorage<unknown>(
-    "topics-trace-filters-v1",
+    "topics-trace-filters-v2",
     emptySnapshots,
   );
   const parsed = snapshotsSchema.safeParse(stored);

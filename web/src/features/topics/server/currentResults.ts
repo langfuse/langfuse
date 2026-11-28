@@ -1,5 +1,7 @@
 import { type FilterState, LangfuseNotFoundError } from "@langfuse/shared";
 import {
+  orderByFacetIds,
+  sortTopicFacets,
   TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,
   type TopicAssignment,
@@ -110,7 +112,7 @@ async function resolveFacetMaps(
   if (scope.analysisId) {
     const execution = await requireAnalysis(projectId, scope.analysisId);
     return Promise.all(
-      execution.facets.flatMap((progress) => {
+      orderByFacetIds(execution.facets, facets).flatMap((progress) => {
         const facet = facets.find((item) => item.id === progress.facetId);
         if (!facet) return [];
         return [
@@ -283,7 +285,7 @@ export async function currentTopicResults(
   timeRange?: TopicTimeRange,
   { facetIds, ruleId }: { facetIds?: string[]; ruleId?: string } = {},
 ) {
-  const facets = (await listTopicFacets(projectId)).filter(
+  const facets = sortTopicFacets(await listTopicFacets(projectId)).filter(
     (facet) => !facetIds || facetIds.includes(facet.id),
   );
   if (!facets.length) return { hasStoredSummaries: false, facets: [] };
@@ -299,10 +301,11 @@ export async function analysisTopicResults(
   executionId: string,
 ) {
   const execution = await requireAnalysis(projectId, executionId);
+  const facets = sortTopicFacets(await listTopicFacets(projectId));
   const maps = await resolveFacetMaps(
     projectId,
     { analysisId: executionId },
-    await listTopicFacets(projectId),
+    facets,
   );
   return {
     execution: {
@@ -313,7 +316,7 @@ export async function analysisTopicResults(
       timeRange: execution.input.timeRange,
       ...execution.input.analysis,
       // Per-facet progress while the snapshot summarizes and groups.
-      progress: execution.facets.map((facet) => ({
+      progress: orderByFacetIds(execution.facets, facets).map((facet) => ({
         facetId: facet.facetId,
         outcome: facet.outcome,
         requested: facet.counts.requested,
@@ -330,7 +333,7 @@ async function currentTopicRows(
   timeRange: TopicTimeRange,
   traceIds: string[],
 ) {
-  const facets = await listTopicFacets(projectId);
+  const facets = sortTopicFacets(await listTopicFacets(projectId));
   const hasStoredSummaries =
     facets.length > 0 && (await hasStoredTopicSummaries(projectId));
   if (!hasStoredSummaries) return { hasStoredSummaries, facets: [] };

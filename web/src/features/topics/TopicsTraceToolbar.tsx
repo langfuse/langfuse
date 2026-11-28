@@ -5,10 +5,12 @@ import { TableSearchBar } from "@/src/features/search-bar/components/TableSearch
 import {
   createTopicTraceRegistry,
   TOPIC_ASSIGNMENT_OPTIONS,
+  topicFilterLabels,
 } from "./topic-trace-filters";
 
 export function TopicsTraceToolbar({
   projectId,
+  facetName,
   topics,
   filters,
   onFiltersChange,
@@ -17,10 +19,10 @@ export function TopicsTraceToolbar({
   traceFields,
   divider = true,
 }: TopicsTraceToolbarProps) {
-  const registry = createTopicTraceRegistry(topics, filters, {
+  const registry = createTopicTraceRegistry(facetName, {
     traceFields: Boolean(traceFields),
   });
-  const topicField = registry.fields.find((field) => field.id === "topic");
+  const topicNames = topicFilterLabels(topics);
 
   return (
     <div className={cn("shrink-0", divider ? "border-b p-2" : "px-4 pt-3")}>
@@ -32,11 +34,8 @@ export function TopicsTraceToolbar({
         setFilterState={onFiltersChange}
         observed={{
           ...traceFields?.observed,
-          topic: topics.map((topic) => ({
-            value:
-              topicField?.displayValueByFilterValue?.get(topic.id) ??
-              topic.name,
-          })),
+          topics: [{ value: facetName }],
+          [`topics.${facetName}`]: topicNames.map((value) => ({ value })),
           assignment: TOPIC_ASSIGNMENT_OPTIONS.map((option) => ({
             value: option.displayValue,
           })),
@@ -64,6 +63,7 @@ type TopicTraceFieldSuggestions = {
 
 type TopicsTraceToolbarProps = {
   projectId?: string;
+  facetName: string;
   topics: { id: string; name: string }[];
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;

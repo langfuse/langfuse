@@ -23,7 +23,11 @@ import {
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
-import { TOPICS_MAX_RULES, type TopicFacet } from "@langfuse/shared/topics";
+import {
+  orderByFacetIds,
+  TOPICS_MAX_RULES,
+  type TopicFacet,
+} from "@langfuse/shared/topics";
 import { cn } from "@/src/utils/tailwind";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
 import { TopicsFacetTabs } from "./TopicsFacetTabs";
@@ -402,13 +406,15 @@ function TopicsWorkspaceContent({
   const setupRetry = api.topics.startRuleSetup.useMutation({
     onSuccess: () => utils.topics.ruleSetupStatus.invalidate({ projectId }),
   });
-  const setupFacets =
-    setup?.facets.map((facet) => ({
-      key: facet.facetId,
-      name: facetName(facet.facetId),
-      complete: facet.complete,
-      requested: facet.requested,
-    })) ?? [];
+  const setupFacets = orderByFacetIds(
+    setup?.facets ?? [],
+    facets.data ?? [],
+  ).map((facet) => ({
+    key: facet.facetId,
+    name: facetName(facet.facetId),
+    complete: facet.complete,
+    requested: facet.requested,
+  }));
   const analysisResults = api.topics.analysisResults.useQuery(
     { projectId, executionId: analysisId ?? "" },
     {

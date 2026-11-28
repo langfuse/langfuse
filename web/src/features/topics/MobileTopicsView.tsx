@@ -10,10 +10,7 @@ import {
   topicTracesHref,
   useTracesWithSelection,
 } from "./facet-topics";
-import {
-  filterTopicTraces,
-  selectTopicTraceFilters,
-} from "./topic-trace-filters";
+import { filterTopicTraces, pickedTopicFilters } from "./topic-trace-filters";
 import { TopicMobileList } from "./TopicMobileList";
 import { TopicsEmptyActions } from "./TopicsEmptyActions";
 import { type TopicsActions } from "./prepare-topics-actions";
@@ -88,9 +85,10 @@ export function MobileTopicsView({
   const mapPoints =
     mapResult.data?.status === "ready" ? mapResult.data.points : null;
   // The map highlights its own points that match the filters.
+  const searchTopics = useMemo(() => orderedFacetTopics(facet), [facet]);
   const matchingTraceKey = useMemo(() => {
     if (!(filters.length > 0 || searchQuery?.trim()) || !mapPoints) return null;
-    const names = new Map(facet.topics.map((topic) => [topic.id, topic.name]));
+    const names = new Map(searchTopics.map((topic) => [topic.id, topic.name]));
     return JSON.stringify(
       filterTopicTraces(
         mapPoints.map((point) => ({
@@ -99,11 +97,12 @@ export function MobileTopicsView({
         })),
         filters,
         searchQuery,
+        { name: facet.name, topics: searchTopics },
       )
         .map((row) => row.traceId)
         .sort(),
     );
-  }, [filters, searchQuery, mapPoints, facet.topics]);
+  }, [filters, searchQuery, mapPoints, searchTopics, facet.name]);
   // Map frame identity follows matching IDs, preserving tap previews across refreshes.
   const matchingTraceIds = useMemo(
     () =>
@@ -146,16 +145,10 @@ export function MobileTopicsView({
       isUnassigned: topicId === UNASSIGNED_TOPIC_ID,
     });
     onFiltersChange(
-      topicId === UNASSIGNED_TOPIC_ID
-        ? [
-            {
-              column: "assignment",
-              type: "stringOptions",
-              operator: "none of",
-              value: ["assigned"],
-            },
-          ]
-        : selectTopicTraceFilters([], topicId),
+      pickedTopicFilters(
+        { name: facet.name, topics: searchTopics },
+        topicId === UNASSIGNED_TOPIC_ID ? null : topicId,
+      ),
     );
     onSearchQueryChange(null);
     showPanel("traces");
@@ -251,7 +244,8 @@ export function MobileTopicsView({
               </div>
               <TopicsTraceToolbar
                 projectId={projectId}
-                topics={orderedFacetTopics(facet)}
+                facetName={facet.name}
+                topics={searchTopics}
                 filters={filters}
                 onFiltersChange={onFiltersChange}
                 searchQuery={searchQuery}

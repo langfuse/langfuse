@@ -5,6 +5,7 @@ import {
   getTracingReadinessSettings,
 } from "@langfuse/shared/src/server";
 import {
+  sortTopicFacets,
   TOPICS_COST_ESTIMATE_MAX_FACETS,
   topicIdSchema,
   topicFacetRefSchema,
@@ -499,8 +500,8 @@ export const topicsRouter = createTRPCRouter({
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
     .query(({ input, ctx }) => previewTopicTraces(input, ctx.prisma)),
-  facets: topicsProcedure.query(({ input }) =>
-    listTopicFacets(input.projectId),
+  facets: topicsProcedure.query(async ({ input }) =>
+    sortTopicFacets(await listTopicFacets(input.projectId)),
   ),
   saveFacet: topicsWriteProcedure
     .input(

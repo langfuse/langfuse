@@ -6,6 +6,35 @@ import { DEFAULT_TOPIC_FACETS } from "./default-facets";
 
 export { DEFAULT_TOPIC_FACETS };
 
+const BUILT_IN_FACET_ORDER = new Map<string, number>(
+  DEFAULT_TOPIC_FACETS.map((facet, index) => [facet.name, index]),
+);
+
+function facetRank(facet: { name: string; isBuiltIn: boolean }) {
+  if (!facet.isBuiltIn) return BUILT_IN_FACET_ORDER.size + 1;
+  return BUILT_IN_FACET_ORDER.get(facet.name) ?? BUILT_IN_FACET_ORDER.size;
+}
+
+/** Built-in presets in `DEFAULT_TOPIC_FACETS` order first; other facets keep their existing order. */
+export function sortTopicFacets<T extends { name: string; isBuiltIn: boolean }>(
+  facets: readonly T[],
+): T[] {
+  return [...facets].sort((a, b) => facetRank(a) - facetRank(b));
+}
+
+/** Orders `{ facetId }` items to match `facets`, keeping unknown IDs last. */
+export function orderByFacetIds<T extends { facetId: string }>(
+  items: readonly T[],
+  facets: readonly { id: string }[],
+): T[] {
+  const rank = new Map(facets.map((facet, index) => [facet.id, index]));
+  return [...items].sort(
+    (a, b) =>
+      (rank.get(a.facetId) ?? facets.length) -
+      (rank.get(b.facetId) ?? facets.length),
+  );
+}
+
 /** Tracing filter column: key is the facet name, values are topic names. */
 const TOPIC_FILTER_COLUMN = "topics";
 

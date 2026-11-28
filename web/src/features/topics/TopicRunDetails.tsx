@@ -5,6 +5,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { cn } from "@/src/utils/tailwind";
 import {
+  orderByFacetIds,
   type TopicFacet,
   type TopicFacetOutcome,
 } from "@langfuse/shared/topics";
@@ -337,7 +338,7 @@ export function TopicRunDetails({
           Questions
         </h3>
         <div className="divide-y">
-          {execution.facets.map((progress) => (
+          {orderByFacetIds(execution.facets, facets).map((progress) => (
             <QuestionRow
               key={`${progress.facetId}:${progress.facetVersion}`}
               progress={progress}

@@ -1,3 +1,4 @@
+import { sortTopicFacets } from "@langfuse/shared/topics";
 import {
   getCompletedTopicRuleRunIds,
   getCurrentTopicMapRows,
@@ -9,7 +10,7 @@ import {
 
 /** Sidebar and search bar options: facet name → topic names of its current published map. */
 export async function topicFilterOptions(projectId: string) {
-  const facets = await listTopicFacets(projectId);
+  const facets = sortTopicFacets(await listTopicFacets(projectId));
   const { maps } = await getPublishedTopicMaps(
     projectId,
     facets.map((facet) => facet.id),
@@ -34,7 +35,7 @@ export async function tracesTopics(
   projectId: string,
   traces: { traceId: string; timestamp: Date }[],
 ) {
-  const facets = await listTopicFacets(projectId);
+  const facets = sortTopicFacets(await listTopicFacets(projectId));
   if (facets.length === 0) return {};
   const { runIds, ruleIds, maps } = await getPublishedTopicMaps(
     projectId,
