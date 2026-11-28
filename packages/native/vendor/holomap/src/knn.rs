@@ -7,6 +7,8 @@
 //! lower-indexed duplicate; Stage 2 zeroes self-edges, so this matches
 //! umap-learn's behaviour on the same lists.
 
+use std::cmp::Ordering;
+
 use crate::metric::{Metric, cosine, euclidean};
 
 /// kNN graph in row-major `n × k` layout.
@@ -25,28 +27,61 @@ pub fn exact_knn(data: &[f32], n_features: usize, k: usize, metric: Metric) -> K
         Metric::Euclidean => euclidean,
         Metric::Cosine => cosine,
     };
-    let mut indices = Vec::with_capacity(n * k);
-    let mut dists = Vec::with_capacity(n * k);
-    let mut row: Vec<(f32, u32)> = Vec::with_capacity(n);
+    // (distance, index) total order — total_cmp keeps the order total and
+    // deterministic; ties broken by lower index.
+    let order =
+        |x: &(f32, u32), y: &(f32, u32)| -> Ordering { x.0.total_cmp(&y.0).then(x.1.cmp(&y.1)) };
+    // Each row keeps its k best candidates ascending by `order`. Distances
+    // are computed once per unordered pair and shared by both rows: both
+    // metrics are orientation-invariant bit-for-bit — euclidean squares
+    // (y−x) = −(x−y) with identical index-order accumulation, and cosine's
+    // products commute exactly (na/nb swap under a commuting multiply). So
+    // each row sees the same candidate multiset as the per-endpoint form,
+    // indices are unique per row, and the sel smallest under the total order
+    // form a unique set independent of arrival order.
+    let sel = k.min(n);
+    // bounded insertion: binary-search the ascending row; past-position-sel
+    // candidates can never make the sel smallest and are dropped
+    let insert = |row: &mut Vec<(f32, u32)>, cand: (f32, u32)| {
+        let pos = row
+            .binary_search_by(|e| order(e, &cand))
+            .unwrap_or_else(|p| p);
+        if pos >= sel {
+            return;
+        }
+        row.insert(pos, cand);
+        if row.len() > sel {
+            row.pop();
+        }
+    };
+    let mut rows: Vec<Vec<(f32, u32)>> = Vec::with_capacity(n);
+    for i in 0..n {
+        // seed the self slot at exactly 0.0 rather than running the metric on
+        // a point against itself: cosine of a point with itself leaves a ±ULP
+        // residue that poisons Stage 2's first-non-zero rho rule. Self is not
+        // guaranteed to survive — lower-indexed exact duplicates tie at zero
+        // and the (distance,index) tie-break evicts it, matching the
+        // reference's full sort; the 0.0 seed only fixes the value when present
+        let row: Vec<(f32, u32)> = if sel > 0 {
+            vec![(0.0, i as u32)]
+        } else {
+            vec![]
+        };
+        rows.push(row);
+    }
     for i in 0..n {
         let a = &data[i * n_features..(i + 1) * n_features];
-        row.clear();
-        row.extend((0..n).map(|j| {
-            // self-distance is axiomatically zero — computing it through the
-            // metric can leave a ±ULP residue (cosine especially), which
-            // would poison Stage 2's first-non-zero rho rule
-            let d = if j == i {
-                0.0
-            } else {
-                let b = &data[j * n_features..(j + 1) * n_features];
-                dist(a, b)
-            };
-            (d, j as u32)
-        }));
-        // (distance, index) ordering — total_cmp keeps the sort total and
-        // deterministic; ties broken by lower index
-        row.sort_unstable_by(|x, y| x.0.total_cmp(&y.0).then(x.1.cmp(&y.1)));
-        for &(d, j) in row.iter().take(k) {
+        for j in i + 1..n {
+            let b = &data[j * n_features..(j + 1) * n_features];
+            let d = dist(a, b);
+            insert(&mut rows[i], (d, j as u32));
+            insert(&mut rows[j], (d, i as u32));
+        }
+    }
+    let mut indices = Vec::with_capacity(n * sel);
+    let mut dists = Vec::with_capacity(n * sel);
+    for row in rows {
+        for (d, j) in row {
             indices.push(j);
             dists.push(d);
         }

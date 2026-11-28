@@ -6,7 +6,7 @@
 //! same stream, same everything. There is no constructor from OS entropy.
 
 use crate::fmath::HostInvariant;
-use rand::Rng as _;
+use rand::RngExt as _;
 use rand::SeedableRng as _;
 use rand_pcg::Pcg64;
 

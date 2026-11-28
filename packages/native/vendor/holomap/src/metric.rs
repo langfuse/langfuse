@@ -17,7 +17,7 @@ impl std::str::FromStr for Metric {
     type Err = crate::HolomapError;
 
     /// Case-insensitive: `"euclidean"` or `"cosine"`. Added for CLI
-    /// consumers (first-consumer feedback from the coda gate harness).
+    /// consumers.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
             "euclidean" => Ok(Metric::Euclidean),

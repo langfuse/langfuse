@@ -48,12 +48,13 @@ pub fn fuzzy_simplicial_set(knn: &Knn, calib: &SmoothKnn) -> FuzzyGraph {
     }
     directed.sort_unstable_by_key(|&(r, c, _)| (r, c));
 
-    let lookup = |r: u32, c: u32| -> f32 {
-        directed
-            .binary_search_by_key(&(r, c), |&(rr, cc, _)| (rr, cc))
-            .map(|pos| directed[pos].2)
-            .unwrap_or(0.0)
-    };
+    // Aᵀ in the same COO order: sorted by (col, row), so a monotone pointer
+    // over it answers lookup(c, r) alongside the pointer over directed.
+    let mut transposed: Vec<(u32, u32, f32)> = Vec::with_capacity(directed.len());
+    for (r, c, w) in &directed {
+        transposed.push((*c, *r, *w));
+    }
+    transposed.sort_unstable_by_key(|&(r, c, _)| (r, c));
 
     // union of A and Aᵀ coordinates, deduped — the t-conorm support
     let mut coords: Vec<(u32, u32)> = directed
@@ -63,12 +64,38 @@ pub fn fuzzy_simplicial_set(knn: &Knn, calib: &SmoothKnn) -> FuzzyGraph {
     coords.sort_unstable();
     coords.dedup();
 
+    // merge-style lookup: directed and transposed are both sorted by the
+    // coord they answer, coords is sorted; the pointers only advance, so the
+    // lookup pass itself is O(|coords| + |directed|) instead of a binary
+    // search per coord. This is a restructure, not an asymptotic win: building
+    // `transposed` copies the edge list and re-sorts it in O(m log m), which
+    // sits at the same order as the binary searches it replaces. It buys
+    // locality (one forward pass, no random probes per coord) at the cost of a
+    // second copy; measure before claiming a gain. Ties cannot happen (each
+    // directed edge appears once per (row, col)), so equality consumes exactly
+    // one entry.
+    let mut pi = 0;
+    let mut pt = 0;
     let mut rows = Vec::with_capacity(coords.len());
     let mut cols = Vec::with_capacity(coords.len());
     let mut vals = Vec::with_capacity(coords.len());
     for (r, c) in coords {
-        let v = lookup(r, c);
-        let vt = lookup(c, r);
+        while pi < directed.len() && (directed[pi].0, directed[pi].1) < (r, c) {
+            pi += 1;
+        }
+        while pt < transposed.len() && (transposed[pt].0, transposed[pt].1) < (r, c) {
+            pt += 1;
+        }
+        let v = if pi < directed.len() && (directed[pi].0, directed[pi].1) == (r, c) {
+            directed[pi].2
+        } else {
+            0.0
+        };
+        let vt = if pt < transposed.len() && (transposed[pt].0, transposed[pt].1) == (r, c) {
+            transposed[pt].2
+        } else {
+            0.0
+        };
         let w = (v + vt) - v * vt; // float32, scipy's operand order
         if w != 0.0 {
             rows.push(r);

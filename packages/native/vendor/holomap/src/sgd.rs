@@ -43,9 +43,10 @@ pub fn schedule_edges(graph: &FuzzyGraph, n_epochs: usize) -> EdgeSchedule {
     };
     let cutoff = max_w / prune_epochs as f32;
 
-    let mut head = Vec::new();
-    let mut tail = Vec::new();
-    let mut epochs_per_sample = Vec::new();
+    let n_edges = graph.vals.len();
+    let mut head = Vec::with_capacity(n_edges);
+    let mut tail = Vec::with_capacity(n_edges);
+    let mut epochs_per_sample = Vec::with_capacity(n_edges);
     for e in 0..graph.vals.len() {
         let w = graph.vals[e];
         if w < cutoff {
@@ -96,7 +97,13 @@ pub fn optimize_embedding(
             let j = schedule.head[i] as usize;
             let k = schedule.tail[i] as usize;
 
-            // attractive update — both endpoints move (move_other = true)
+            // attractive update — both endpoints move (move_other = true).
+            // hi_powf runs once per attractive and once per repulsive update:
+            // this libm::pow is the measured ~1.35x throughput floor (README),
+            // 3.37s→4.55s on 1000×50-d as recorded in src/fmath.rs — a floor,
+            // x^b and x^(b-1) share no bit-identical subexpression (b≈0.758 is
+            // irrational) and x^(b-1)=x^b/x is out of bounds — any replacement
+            // breaks the bit-identical contract, so do not "optimise" this pow.
             let d2 = rdist(embedding, dim, j, k);
             let grad_coeff = if d2 > 0.0 {
                 let d2 = f64::from(d2);
