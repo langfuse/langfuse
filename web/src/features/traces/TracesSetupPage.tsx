@@ -16,7 +16,6 @@ import {
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type RouterOutput } from "@/src/utils/types";
 import { useQueryProject } from "@/src/features/projects/hooks";
 
 export const TracingSetup = ({
@@ -35,14 +34,21 @@ export const TracingSetup = ({
   const roleSelectionEnabled =
     session?.environment?.apiKeyProjectRoleSelectionEnabled ?? false;
   const keyHint = onboardingApiKeyHint(roleSelectionEnabled);
-  const [apiKeys, setApiKeys] = useState<
-    RouterOutput["projectApiKeys"]["create"] | null
-  >(null);
+  // The secret only works with the project it was created in, so a key
+  // created before switching projects must not show under the new one.
+  const [createdKey, setCreatedKey] = useState<{
+    projectId: string;
+    secretKey: string;
+  } | null>(null);
+  const apiKeys = createdKey?.projectId === projectId ? createdKey : null;
   const utils = api.useUtils();
   const mutCreateApiKey = api.projectApiKeys.create.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       utils.projectApiKeys.invalidate();
-      setApiKeys(data);
+      setCreatedKey({
+        projectId: variables.projectId,
+        secretKey: data.secretKey,
+      });
     },
   });
 
@@ -64,7 +70,7 @@ export const TracingSetup = ({
           <ApiKeyDetailContent
             scope="project"
             secretKey={apiKeys.secretKey}
-            publicKey={apiKeys.publicKey}
+            projectId={projectId}
             baseUrl={baseUrl}
             className="mt-4"
             showMcpSection={false}

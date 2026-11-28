@@ -71,6 +71,7 @@ export const WithoutRoleSelection = meta.story({
 });
 
 const SECRET_KEY = "sk-lf-4d164bc4-3275-43dd-8b18-150e006da4e7";
+const PROJECT_ID = "cm1demoproject00000000001";
 
 export const Created = meta.story({
   name: "(Test) Created Masks Secret Key",
@@ -78,7 +79,7 @@ export const Created = meta.story({
     type: "detail",
     scope: "project",
     secretKey: SECRET_KEY,
-    publicKey: "pk-lf-779bffdd-3973-4881-8cb0-06fd83d40ccc",
+    projectId: PROJECT_ID,
     baseUrl: "https://cloud.langfuse.com",
   },
   play: async ({ canvasElement }) => {
@@ -89,6 +90,10 @@ export const Created = meta.story({
       "writeText",
     ).mockResolvedValue();
     try {
+      await expect(body.textContent).toContain(
+        `LANGFUSE_PUBLIC_KEY="${PROJECT_ID}"`,
+      );
+      await expect(body.textContent).not.toContain("pk-lf-");
       await expect(body.textContent).not.toContain(SECRET_KEY);
 
       await userEvent.click(screen.getByRole("button", { name: "Copy key" }));
@@ -102,5 +107,22 @@ export const Created = meta.story({
     } finally {
       writeText.mockRestore();
     }
+  },
+});
+
+export const CreatedOrganizationKey = meta.story({
+  name: "(Test) Created Organization Key Uses Project Id Placeholder",
+  args: {
+    type: "detail",
+    scope: "organization",
+    secretKey: SECRET_KEY,
+    baseUrl: "https://cloud.langfuse.com",
+  },
+  play: async ({ canvasElement }) => {
+    const body = canvasElement.ownerDocument.body;
+    await expect(body.textContent).toContain(
+      'LANGFUSE_PUBLIC_KEY="<your-project-id>"',
+    );
+    await expect(body.textContent).not.toContain("pk-lf-");
   },
 });

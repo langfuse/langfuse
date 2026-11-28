@@ -58,7 +58,8 @@ vi.mock("@/src/utils/api", () => {
 });
 
 vi.mock("@/src/features/public-api/hooks/useLangfuseEnvCode", () => ({
-  useLangfuseEnvCode: () => 'LANGFUSE_PUBLIC_KEY="pk-lf-..."',
+  useLangfuseEnvCode: (projectId: string) =>
+    `LANGFUSE_PUBLIC_KEY="${projectId}"`,
   useLangfuseBaseUrl: () => "http://localhost:3000",
 }));
 
@@ -103,6 +104,14 @@ describe("ApiKeyList project access gating", () => {
     expect(screen.getByTitle("pk-lf-1234")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /create new api keys/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the project id as the public key in the .env example", () => {
+    renderAsProjectRole("MEMBER");
+
+    expect(
+      screen.getByText(`LANGFUSE_PUBLIC_KEY="${PROJECT_ID}"`),
     ).toBeInTheDocument();
   });
 

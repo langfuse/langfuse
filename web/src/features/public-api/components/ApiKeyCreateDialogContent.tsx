@@ -53,20 +53,23 @@ export type ApiKeyCreateDialogContentProps =
       onSubmit: (values: ApiKeyCreateValues) => void;
       isPending?: boolean;
     }
-  | (Omit<
+  | (DistributiveOmit<
       React.ComponentProps<typeof ApiKeyDetailContent>,
       "showMcpSection"
     > & {
       type: "detail";
     });
 
+/** DistributiveOmit omits keys from each member of a union, keeping it discriminated. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
+
 export function ApiKeyCreateDialogContent(
   props: ApiKeyCreateDialogContentProps,
 ) {
-  const { scope } = props;
-
   if (props.type === "detail") {
-    const { secretKey, publicKey, baseUrl } = props;
+    const { type: _type, ...detailProps } = props;
 
     return (
       <DialogContent>
@@ -74,13 +77,7 @@ export function ApiKeyCreateDialogContent(
           <DialogTitle>API Keys</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <ApiKeyDetailContent
-            scope={scope}
-            secretKey={secretKey}
-            publicKey={publicKey}
-            baseUrl={baseUrl}
-            showMcpSection={true}
-          />
+          <ApiKeyDetailContent {...detailProps} showMcpSection={true} />
         </DialogBody>
         <DialogFooter>
           <DialogClose asChild>

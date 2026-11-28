@@ -210,7 +210,7 @@ pip install langfuse openai
 
 ```bash filename=".env"
 LANGFUSE_SECRET_KEY="sk-lf-..."
-LANGFUSE_PUBLIC_KEY="pk-lf-..."
+LANGFUSE_PUBLIC_KEY="<your-project-id>"
 LANGFUSE_BASE_URL="https://cloud.langfuse.com" # 🇪🇺 欧盟区域
 # LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇺🇸 美国区域
 # LANGFUSE_BASE_URL="https://jp.cloud.langfuse.com" # 🇯🇵 日本区域

@@ -14,7 +14,7 @@ const variants = Object.keys({
 } satisfies Record<Variant, true>) as Variant[];
 
 const envCode = `LANGFUSE_SECRET_KEY="sk-lf-..."
-LANGFUSE_PUBLIC_KEY="pk-lf-..."
+LANGFUSE_PUBLIC_KEY="<your-project-id>"
 LANGFUSE_BASE_URL="https://cloud.langfuse.com"`;
 
 const longCode = Array.from(
@@ -28,7 +28,7 @@ curl -s "$LANGFUSE_GATEWAY_HOST/openai/v1/models" \\
   -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY"`;
 
 const longLine =
-  "Authorization: Basic cGstbGYtMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwOnNrLWxmLTAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMA==";
+  "Authorization: Basic Y2x4MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA6c2stbGYtMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw";
 
 const meta = preview.meta({
   component: CodeSection,

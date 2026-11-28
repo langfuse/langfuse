@@ -62,14 +62,14 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
             The Langfuse MCP server lets AI assistants and agents interact with
             your Langfuse data programmatically via the Model Context Protocol.
             It supports both read and write operations, and you can restrict it
-            to read-only access with an allowlist. Authenticate with a
-            project-scoped API key pair.
+            to read-only access with an allowlist. Authenticate with this
+            project&apos;s ID and a secret key, encoded as Basic auth.
           </p>
           <CodeBlock
             language="shell"
             value={`claude mcp add --transport http langfuse \\
   https://cloud.langfuse.com/api/public/mcp \\
-  --header "Authorization: Basic {your-base64-token}"`}
+  --header "Authorization: Basic $(echo -n '${projectId}:sk-lf-...' | base64 | tr -d '\\n')"`}
           />
           <div className="mt-4 flex items-center gap-2">
             <ManageApiKeysButton projectId={projectId} />
@@ -86,11 +86,11 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
             The Langfuse CLI provides terminal access to the full Langfuse API.
             It wraps every API endpoint, so you can manage traces, prompts,
             datasets, scores, and sessions directly from your shell or scripts.
-            It uses the same API key pair as the Langfuse SDKs.
+            It uses the same project ID and secret key as the Langfuse SDKs.
           </p>
           <CodeBlock
             language="shell"
-            value={`export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+            value={`export LANGFUSE_PUBLIC_KEY="${projectId}"
 export LANGFUSE_SECRET_KEY="sk-lf-..."
 
 npx langfuse-cli api <resource> <action>`}

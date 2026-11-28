@@ -27,8 +27,9 @@ export function CliSetupAccordion({
               />
             </div>
             <p className="text-muted-foreground">
-              Replace the placeholders with your project’s API keys. These
-              settings apply to your current terminal session.
+              Replace the secret key placeholder with one of your project’s
+              secret keys. These settings apply to your current terminal
+              session.
             </p>
             <Button
               text="Get project API keys"
@@ -39,7 +40,7 @@ export function CliSetupAccordion({
             <div className="ph-no-capture w-full min-w-0">
               <Codeblock
                 language="bash"
-                value={`export LANGFUSE_PUBLIC_KEY='pk-lf-...'\nexport LANGFUSE_SECRET_KEY='sk-lf-...'\nexport LANGFUSE_HOST=${shellQuote(host)}`}
+                value={`export LANGFUSE_PUBLIC_KEY=${shellQuote(projectId)}\nexport LANGFUSE_SECRET_KEY='sk-lf-...'\nexport LANGFUSE_HOST=${shellQuote(host)}`}
                 variant="read-only"
               />
             </div>

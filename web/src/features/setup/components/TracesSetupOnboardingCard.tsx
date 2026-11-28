@@ -11,7 +11,6 @@ import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKey
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { type RouterOutput } from "@/src/utils/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { legacyApiKeyRoleForScope } from "@langfuse/shared/rbac";
 import { Check, Copy, LockIcon, Sparkles } from "@langfuse/icons";
@@ -93,14 +92,21 @@ export function TracesSetupOnboardingCard({
   const roleSelectionEnabled =
     session?.environment?.apiKeyProjectRoleSelectionEnabled ?? false;
   const keyHint = onboardingApiKeyHint(roleSelectionEnabled);
-  const [apiKeys, setApiKeys] = useState<
-    RouterOutput["projectApiKeys"]["create"] | null
-  >(null);
+  // The secret only works with the project it was created in, so a key
+  // created before switching projects must not show under the new one.
+  const [createdKey, setCreatedKey] = useState<{
+    projectId: string;
+    secretKey: string;
+  } | null>(null);
+  const apiKeys = createdKey?.projectId === projectId ? createdKey : null;
   const utils = api.useUtils();
   const mutCreateApiKey = api.projectApiKeys.create.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       utils.projectApiKeys.invalidate();
-      setApiKeys(data);
+      setCreatedKey({
+        projectId: variables.projectId,
+        secretKey: data.secretKey,
+      });
     },
   });
 
@@ -138,7 +144,7 @@ export function TracesSetupOnboardingCard({
             <ApiKeyDetailContent
               scope="project"
               secretKey={apiKeys.secretKey}
-              publicKey={apiKeys.publicKey}
+              projectId={projectId}
               baseUrl={baseUrl}
               className="mt-1"
               showMcpSection={false}

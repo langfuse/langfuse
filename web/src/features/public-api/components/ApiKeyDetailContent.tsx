@@ -2,26 +2,25 @@
 import { type ReactNode } from "react";
 import { FileCode, Plug, type IconComponent } from "@langfuse/icons";
 
-import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Label } from "@/src/components/ui/label";
 import { MaskedGatewayKey } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/MaskedGatewayKey";
 import { StepCodeSection } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/StepCodeSection";
 import { GatewaySecretKeyContext } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
 import { GATEWAY_KEY_PLACEHOLDER } from "@/src/features/ai-gateway/constants/agentSetupInstructions";
-import { getLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import {
+  getLangfuseEnvCode,
+  projectIdPlaceholder,
+} from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { cn } from "@/src/utils/tailwind";
 
-type ApiKeyScope = "project" | "organization";
-
+/** ApiKeyDetailContentProps name the project a project key's examples use as the public key. */
 export type ApiKeyDetailContentProps = {
-  scope: ApiKeyScope;
   secretKey: string;
-  publicKey: string;
   baseUrl: string;
   className?: string;
   showMcpSection: boolean;
-};
+} & ({ scope: "project"; projectId: string } | { scope: "organization" });
 
 type UsageTab = {
   id: string;
@@ -35,8 +34,9 @@ type UsageTab = {
   secret: string;
 };
 
-function encodeMcpCredential(publicKey: string, secretKey: string) {
-  const credential = `${publicKey}:${secretKey}`;
+/** encodeMcpCredential returns the Basic auth token for a project id and secret key. */
+function encodeMcpCredential(projectId: string, secretKey: string) {
+  const credential = `${projectId}:${secretKey}`;
 
   if (typeof globalThis.btoa === "function") {
     return globalThis.btoa(credential);
@@ -46,8 +46,8 @@ function encodeMcpCredential(publicKey: string, secretKey: string) {
 }
 
 export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
-  const { scope, secretKey, publicKey, baseUrl, className, showMcpSection } =
-    props;
+  const { scope, secretKey, baseUrl, className, showMcpSection } = props;
+  const projectId = exampleProjectId(props);
 
   const tabs: UsageTab[] = [
     {
@@ -57,8 +57,8 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       description:
         "Add these environment variables to your application to send traces to Langfuse.",
       code: getLangfuseEnvCode(baseUrl, {
+        projectId,
         secretKey: GATEWAY_KEY_PLACEHOLDER,
-        publicKey,
       }),
       secret: secretKey,
     },
@@ -86,7 +86,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       ),
       codeLabel: "Header",
       code: `Authorization: Basic ${GATEWAY_KEY_PLACEHOLDER}`,
-      secret: encodeMcpCredential(publicKey, secretKey),
+      secret: encodeMcpCredential(projectId, secretKey),
     });
   }
 
@@ -99,10 +99,6 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
           the {scope} settings.
         </p>
         <MaskedGatewayKey secretKey={secretKey} />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <h4 className="text-sm font-bold">Public Key</h4>
-        <CodeSection variant="outline" content={publicKey} />
       </div>
       <hr />
       <div className="flex flex-col gap-2">
@@ -142,4 +138,10 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       </div>
     </div>
   );
+}
+
+/** exampleProjectId is the project id the examples use: the key's own project, or a placeholder for an organization key. */
+function exampleProjectId(props: ApiKeyDetailContentProps): string {
+  if (props.scope === "project") return props.projectId;
+  return projectIdPlaceholder;
 }

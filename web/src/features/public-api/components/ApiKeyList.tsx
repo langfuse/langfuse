@@ -5,7 +5,10 @@ import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSect
 import Header from "@/src/components/layouts/header";
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { ConnectedApiKeySettingsTable } from "@/src/features/public-api/components/ApiKeySettingsTable/ConnectedApiKeySettingsTable";
-import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import {
+  projectIdPlaceholder,
+  useLangfuseEnvCode,
+} from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
@@ -13,7 +16,7 @@ type ApiKeyScope = "project" | "organization";
 
 export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const { entityId, scope } = props;
-  const envCode = useLangfuseEnvCode();
+  const envCode = useLangfuseEnvCode(exampleProjectId(entityId, scope));
 
   if (!entityId) {
     throw new Error(
@@ -82,4 +85,10 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
       />
     </div>
   );
+}
+
+/** exampleProjectId is the project id the .env example uses: the project itself, or a placeholder for an organization. */
+function exampleProjectId(entityId: string, scope: ApiKeyScope): string {
+  if (scope === "project") return entityId;
+  return projectIdPlaceholder;
 }

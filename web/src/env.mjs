@@ -463,7 +463,7 @@ export const env = createEnv({
       .enum(["legacy", "shadow", "enforce"])
       .default("enforce"),
     API_KEY_PROJECT_ROLES_ENABLE: z.enum(["true", "false"]).default("true"),
-    API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("false"),
+    API_KEY_ORG_ROLES_ENABLE: z.enum(["true", "false"]).default("true"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce

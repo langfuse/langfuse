@@ -19,7 +19,7 @@
  * the transport layer needs direct response control for both JSON and SSE responses.
  * Error handling, header validation, and CORS are implemented in this route layer.
  *
- * Authentication: BasicAuth (Public Key:Secret Key) - LF-1927
+ * Authentication: BasicAuth (Project ID:Secret Key) - LF-1927
  * Resources: Added in LF-1928
  * Tools: Added in LF-1929
  */
@@ -47,7 +47,7 @@ import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/se
  *
  * Request flow:
  * 1. Validate Host/Origin headers and handle CORS
- * 2. Authenticate request using BasicAuth (Public Key:Secret Key)
+ * 2. Authenticate request using BasicAuth (Project ID:Secret Key)
  * 3. Check rate limits
  * 4. Extract ServerContext from authenticated API key
  * 5. Create fresh MCP server instance with context in closures

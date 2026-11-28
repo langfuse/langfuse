@@ -28,32 +28,33 @@ export function CreateApiKeyButton(props: {
   });
 
   const [open, setOpen] = useState(false);
-  const [generatedKeys, setGeneratedKeys] = useState<{
+  // Kept with the entity it was created for, so a creation that resolves
+  // after switching entities never shows under the new one.
+  const [createdKey, setCreatedKey] = useState<{
+    entityId: string;
     secretKey: string;
-    publicKey: string;
   } | null>(null);
+  const secretKey =
+    createdKey?.entityId === props.entityId ? createdKey.secretKey : null;
   const baseUrl = useLangfuseBaseUrl();
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    if (!newOpen) setGeneratedKeys(null);
-  };
-
-  const onCreated = (keys: { secretKey: string; publicKey: string }) => {
-    setGeneratedKeys(keys);
+    if (!newOpen) setCreatedKey(null);
   };
 
   const createApiKey = (values: ApiKeyCreateValues) => {
+    const entityId = props.entityId;
     if (props.scope === "project") {
       mutCreateProjectApiKey
         .mutateAsync({
-          projectId: props.entityId,
+          projectId: entityId,
           name: values.name || undefined,
           ...(values.role === undefined ? {} : { role: values.role }),
           expiresAt: values.expiresAt,
         })
-        .then(({ secretKey, publicKey }) => {
-          onCreated({ secretKey, publicKey });
+        .then((created) => {
+          setCreatedKey({ entityId, secretKey: created.secretKey });
           capture(`${props.scope}_settings:api_key_create`, {
             role: values.role,
             expiresAt: values.expiresAt?.toISOString() ?? null,
@@ -63,13 +64,13 @@ export function CreateApiKeyButton(props: {
     } else {
       mutCreateOrgApiKey
         .mutateAsync({
-          orgId: props.entityId,
+          orgId: entityId,
           name: values.name || undefined,
           ...(values.role === undefined ? {} : { role: values.role }),
           expiresAt: values.expiresAt,
         })
-        .then(({ secretKey, publicKey }) => {
-          onCreated({ secretKey, publicKey });
+        .then((created) => {
+          setCreatedKey({ entityId, secretKey: created.secretKey });
           capture(`${props.scope}_settings:api_key_create`, {
             role: values.role,
             expiresAt: values.expiresAt?.toISOString() ?? null,
@@ -77,6 +78,40 @@ export function CreateApiKeyButton(props: {
         })
         .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
+  };
+
+  const dialogContent = () => {
+    if (secretKey === null) {
+      return (
+        <ApiKeyCreateDialogContent
+          type="form"
+          scope={props.scope}
+          onSubmit={createApiKey}
+          isPending={
+            mutCreateProjectApiKey.isPending || mutCreateOrgApiKey.isPending
+          }
+        />
+      );
+    }
+    if (props.scope === "project") {
+      return (
+        <ApiKeyCreateDialogContent
+          type="detail"
+          scope="project"
+          projectId={props.entityId}
+          secretKey={secretKey}
+          baseUrl={baseUrl}
+        />
+      );
+    }
+    return (
+      <ApiKeyCreateDialogContent
+        type="detail"
+        scope="organization"
+        secretKey={secretKey}
+        baseUrl={baseUrl}
+      />
+    );
   };
 
   return (
@@ -91,24 +126,7 @@ export function CreateApiKeyButton(props: {
           Create new API keys
         </Button>
       </DialogTrigger>
-      <ApiKeyCreateDialogContent
-        scope={props.scope}
-        {...(generatedKeys
-          ? {
-              type: "detail" as const,
-              secretKey: generatedKeys.secretKey,
-              publicKey: generatedKeys.publicKey,
-              baseUrl,
-              showMcpSection: true,
-            }
-          : {
-              type: "form" as const,
-              onSubmit: createApiKey,
-              isPending:
-                mutCreateProjectApiKey.isPending ||
-                mutCreateOrgApiKey.isPending,
-            })}
-      />
+      {dialogContent()}
     </Dialog>
   );
 }

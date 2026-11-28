@@ -349,7 +349,6 @@ export function V4MigrationAgentUpgradeSection({
   const [generatedKeys, setGeneratedKeys] = useState<{
     projectId: string;
     secretKey: string;
-    publicKey: string;
   } | null>(null);
   const generatedKeysForProject =
     generatedKeys?.projectId === projectId ? generatedKeys : null;
@@ -379,12 +378,8 @@ export function V4MigrationAgentUpgradeSection({
         projectId,
         name: "v4-migration-key",
       })
-      .then(({ secretKey, publicKey }) => {
-        setGeneratedKeys({
-          projectId,
-          secretKey,
-          publicKey,
-        });
+      .then(({ secretKey }) => {
+        setGeneratedKeys({ projectId, secretKey });
         capture(`project_settings:api_key_create`);
       })
       .catch((error) => {
@@ -413,7 +408,7 @@ export function V4MigrationAgentUpgradeSection({
   const envBlock = generatedKeysForProject
     ? [
         `LANGFUSE_BASE_URL=${typeof window === "undefined" ? "" : window.location.origin}`,
-        `LANGFUSE_PUBLIC_KEY=${generatedKeysForProject.publicKey}`,
+        `LANGFUSE_PUBLIC_KEY=${generatedKeysForProject.projectId}`,
         `LANGFUSE_SECRET_KEY=${generatedKeysForProject.secretKey}`,
       ].join("\n")
     : null;

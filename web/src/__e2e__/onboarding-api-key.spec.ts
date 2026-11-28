@@ -19,11 +19,10 @@ import { signIn } from "./utils/auth";
 
 const UNIQUE = Date.now().toString(36);
 
-// `pk-lf-`/`sk-lf-` plus a UUID, per `generateKeySet` in
-// packages/shared/src/server/auth/apiKeys.ts. Anchored so these match the
+// `sk-lf-` plus a UUID, per `generateKeySet` in
+// packages/shared/src/server/auth/apiKeys.ts. Anchored so it matches the
 // single `<code>` element holding the bare key and never the `.env` snippet
-// that quotes both of them.
-const PUBLIC_KEY_PATTERN = /^pk-lf-[0-9a-f-]{36}$/;
+// that quotes it.
 const SECRET_KEY_PATTERN = /^sk-lf-[0-9a-f-]{36}$/;
 
 /**
@@ -64,12 +63,16 @@ async function createFirstProject(page: Page, label: string): Promise<string> {
  * the project, not a value the client made up — and a named Developer key that
  * never expires.
  */
-async function expectOnboardingKey(publicKeyValue: string, projectId: string) {
-  const persistedKey = await prisma.apiKey.findUniqueOrThrow({
-    where: { publicKey: publicKeyValue },
+async function expectOnboardingKey(secretKeyValue: string, projectId: string) {
+  const persistedKeys = await prisma.apiKey.findMany({
+    where: { projectId },
   });
-  expect(persistedKey.projectId).toBe(projectId);
+  expect(persistedKeys).toHaveLength(1);
+  const persistedKey = persistedKeys[0]!;
   expect(persistedKey.scope).toBe("PROJECT");
+  expect(persistedKey.displaySecretKey).toBe(
+    `sk-lf-...${secretKeyValue.slice(-4)}`,
+  );
   expect(persistedKey.note).toBe("onboarding-setup-key");
   expect(persistedKey.expiresAt).toBeNull();
   const roleAssignment = await prisma.roleAssignment.findFirstOrThrow({
@@ -94,20 +97,22 @@ test("Create the first project, then create its API key from the onboarding card
   // regression: the mutation rejects, a "Failed to create API key" toast shows
   // instead, and the user leaves onboarding with no keys.
   const secretKey = page.getByText(SECRET_KEY_PATTERN);
-  const publicKey = page.getByText(PUBLIC_KEY_PATTERN);
-  await expect(publicKey).toBeVisible();
+  const showKeyButtons = page.getByRole("button", { name: "Show key" });
+  await expect(showKeyButtons.first()).toBeVisible();
+
+  // The examples use the project id as the public key, so the panel never
+  // shows the key's own public key.
+  await expect(page.getByText(/pk-lf-/)).toHaveCount(0);
 
   await expect(secretKey).toHaveCount(0);
-  const showKeyButtons = page.getByRole("button", { name: "Show key" });
   await expect(showKeyButtons).toHaveCount(2);
   await showKeyButtons.first().click();
   await expect(secretKey).toBeVisible();
 
   const secretKeyValue = (await secretKey.innerText()).trim();
-  const publicKeyValue = (await publicKey.innerText()).trim();
 
-  // The panel also offers the pair as a copyable `.env` block; it is what the
-  // user actually pastes, so it has to carry the same two values.
+  // The panel also offers a copyable `.env` block; it is what the user
+  // actually pastes, so it has to carry the secret key and the project id.
   const envSnippet = page.locator("code", { hasText: "LANGFUSE_SECRET_KEY" });
   // The snippet's actions only show on hover.
   await envSnippet.hover();
@@ -115,11 +120,9 @@ test("Create the first project, then create its API key from the onboarding card
   await expect(envSnippet).toContainText(
     `LANGFUSE_SECRET_KEY="${secretKeyValue}"`,
   );
-  await expect(envSnippet).toContainText(
-    `LANGFUSE_PUBLIC_KEY="${publicKeyValue}"`,
-  );
+  await expect(envSnippet).toContainText(`LANGFUSE_PUBLIC_KEY="${projectId}"`);
 
-  await expectOnboardingKey(publicKeyValue, projectId);
+  await expectOnboardingKey(secretKeyValue, projectId);
 });
 
 test("Create the first API key from /traces/setup", async ({ page }) => {
@@ -128,7 +131,12 @@ test("Create the first API key from /traces/setup", async ({ page }) => {
   await page.goto(`/project/${projectId}/traces/setup`);
   await page.getByRole("button", { name: "Create new API key" }).click();
 
-  const publicKey = page.getByText(PUBLIC_KEY_PATTERN);
-  await expect(publicKey).toBeVisible();
-  await expectOnboardingKey((await publicKey.innerText()).trim(), projectId);
+  const showKeyButtons = page.getByRole("button", { name: "Show key" });
+  await expect(showKeyButtons.first()).toBeVisible();
+  await expect(page.getByText(/pk-lf-/)).toHaveCount(0);
+  await showKeyButtons.first().click();
+
+  const secretKey = page.getByText(SECRET_KEY_PATTERN);
+  await expect(secretKey).toBeVisible();
+  await expectOnboardingKey((await secretKey.innerText()).trim(), projectId);
 });
