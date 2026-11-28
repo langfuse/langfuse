@@ -37,6 +37,22 @@ topics_llm:
   - packages/shared/src/encryption/**
   - packages/shared/src/interfaces/customLLMProviderConfigSchemas.ts
 
+# Any change outside web/: the worker neither imports nor reads web/. A negated
+# pattern matches every path it does not exclude, so this is false only when
+# every changed file is under web/.
+worker:
+  - "!web/**"
+
+# The gateway's Rust checks, image build and smoke test. Outside ai-gateway/ the
+# crate reads only its path dependency on the guardrail rules crate and the root
+# deny.toml, which cargo-deny finds by searching parent directories.
+ai_gateway_crate:
+  - ai-gateway/**
+  - packages/ai-gateway-guardrail-rules/**
+  - deny.toml
+  - .github/workflows/pipeline.yml
+  - .github/ci-paths.yml
+
 # Gateway Rust service, control-plane/feature code, RBAC/API-key auth it depends on, and e2e suite.
 ai_gateway:
   - ai-gateway/src/**

@@ -63,6 +63,8 @@ function allowedFilteredSkips(event, ref, needs, fork) {
     ["test-worker-llm-connections", "llm_connections"],
     ["test-ai-gateway-e2e", "ai_gateway"],
     ["tests-ai-gateway-guardrail-rules", "ai_gateway_guardrail_rules"],
+    ["tests-worker", "worker"],
+    ["tests-ai-gateway", "ai_gateway_crate"],
   ]) {
     if (
       selection?.result === "success" &&
