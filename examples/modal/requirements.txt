@@ -1,0 +1,2 @@
+modal>=1.6.3
+requests>=2.32.0
