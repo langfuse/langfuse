@@ -150,6 +150,27 @@ describe("useScoreAnalyticsQuery", () => {
     );
   });
 
+  it("keeps score2 bins that have no score1 values", () => {
+    const binLabels = generateBinLabels({ min: 0, max: 1, nBins: 4 });
+    const chart = buildNumericDistributionChartData({
+      distribution1: [
+        { binIndex: 0, count: 5 },
+        { binIndex: 1, count: 3 },
+      ],
+      distribution2: [
+        { binIndex: 1, count: 2 },
+        { binIndex: 3, count: 7 },
+      ],
+      binLabels,
+    });
+
+    expect(chart.data.map((row) => [row.key, row.values])).toEqual([
+      ["bin-0", { score1: 5, score2: 0 }],
+      ["bin-1", { score1: 3, score2: 2 }],
+      ["bin-3", { score1: 0, score2: 7 }],
+    ]);
+  });
+
   afterEach(() => {
     mockedUseQuery.mockReset();
   });
