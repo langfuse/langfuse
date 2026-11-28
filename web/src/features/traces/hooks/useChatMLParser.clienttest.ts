@@ -1,5 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
+import { deepParseJsonIterative } from "@langfuse/shared/src/utils/json";
 import { toIOPreview } from "../parsers/toIOPreview";
 import { hasThinkingContent } from "../fns/chatMessageUtils";
 import { getSkillLoadRequests } from "../fns/getSkillLoadRequests";
@@ -8,6 +9,7 @@ import {
   type ChatMLParserResult,
   useChatMLParser,
 } from "./useChatMLParser";
+import { useIOPreviewParser } from "./useIOPreviewParser";
 
 const parserImplementations = [
   {
@@ -28,6 +30,53 @@ const parserImplementations = [
 ] as const;
 
 describe("useChatMLParser", () => {
+  it("shows OTel text-part JSON strings as assistant content after background parsing", () => {
+    const reply = '{"response":"Hello","justification":"Because."}';
+    const output = JSON.stringify([
+      { role: "assistant", parts: [{ type: "text", content: reply }] },
+    ]);
+    const parsedOutput = deepParseJsonIterative(output, {
+      maxDepth: Infinity,
+    });
+
+    const { result } = renderHook(() =>
+      useIOPreviewParser(undefined, output, undefined, undefined, parsedOutput),
+    );
+
+    expect(result.current.allMessages[0]?.content).toBe(reply);
+  });
+
+  it("shows OTel text parts when the output is already a JSON array", () => {
+    const reply = '{"response":"Hello"}';
+    const output = [
+      { role: "assistant", parts: [{ type: "text", content: reply }] },
+    ];
+    const parsedOutput = deepParseJsonIterative(output, {
+      maxDepth: Infinity,
+    });
+
+    const { result } = renderHook(() =>
+      useIOPreviewParser(undefined, output, undefined, undefined, parsedOutput),
+    );
+
+    expect(result.current.allMessages[0]?.content).toBe(reply);
+  });
+
+  it("shows assistant content from a double encoded output envelope", () => {
+    const output = JSON.stringify(
+      JSON.stringify([{ role: "assistant", content: "Hello" }]),
+    );
+    const parsedOutput = deepParseJsonIterative(output, {
+      maxDepth: Infinity,
+    });
+
+    const { result } = renderHook(() =>
+      useIOPreviewParser(undefined, output, undefined, undefined, parsedOutput),
+    );
+
+    expect(result.current.allMessages[0]?.content).toBe("Hello");
+  });
+
   it.each(parserImplementations)(
     "$name parser highlights only skills requested by the current generation",
     ({ parse }) => {
