@@ -96,6 +96,10 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
 
   const mediaUrl = data?.url;
 
+  // LangfuseMediaView explains why the file cannot be downloaded.
+  if (mediaUrl === null) {
+    return <LangfuseMediaView mediaAPIReturnValue={mediaItem} variant="icon" />;
+  }
   if (!mediaUrl) return null;
 
   const contentType = mediaItem.contentType;

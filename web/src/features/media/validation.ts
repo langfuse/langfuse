@@ -103,7 +103,7 @@ const MediaReturnSchema = z.object({
   mediaId: z.string(),
   contentType: z.enum(MediaContentType),
   contentLength: z.coerce.number(),
-  url: z.string(),
+  url: z.string().nullable(),
   urlExpiry: z.string(),
   field: z.enum(MediaEnabledFields),
 });

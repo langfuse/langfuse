@@ -18,6 +18,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { cn } from "@/src/utils/tailwind";
 import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
+import { MEDIA_DOWNLOAD_UNAVAILABLE_MESSAGE } from "@/src/features/media/constants/mediaDownloadUnavailableMessage";
 
 /**
  * Resolution state of the previewable content. The collapsed chip renders the
@@ -25,7 +26,12 @@ import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
  * peek popover body. Owned by the container that fetches the URL — `MediaTag`
  * itself never fetches, which keeps it pure and Storybook-able.
  */
-export type MediaTagStatus = "idle" | "loading" | "ready" | "error";
+export type MediaTagStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error"
+  | "unavailable";
 type MediaTagIntent = "default" | "attachment";
 type MediaTagSize = "sm" | "md";
 
@@ -196,6 +202,15 @@ function PeekBody({
             {errorDetail}
           </code>
         ) : null}
+      </div>
+    );
+  }
+
+  if (status === "unavailable") {
+    return (
+      <div className="text-muted-foreground flex min-h-24 w-64 flex-col items-center justify-center gap-2 p-2">
+        <ImageOff size="lg" />
+        <span className="text-xs">{MEDIA_DOWNLOAD_UNAVAILABLE_MESSAGE}</span>
       </div>
     );
   }

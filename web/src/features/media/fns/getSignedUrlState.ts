@@ -24,6 +24,8 @@ export function getSignedUrlState(
 } {
   const isUnusable = () => {
     if (query.isError) return true;
+    // No URL was issued, so there is nothing to renew.
+    if (query.data?.url === null) return false;
     const urlTtlSeconds = query.data?.urlTtlSeconds;
     if (urlTtlSeconds === undefined) return false;
     const lifetime = urlTtlSeconds * 1000;
@@ -45,6 +47,9 @@ export function getSignedUrlState(
       refreshIfNeeded,
     };
   }
+  if (query.data?.url === null) {
+    return { status: "unavailable", refreshIfNeeded };
+  }
   if (query.data?.url) {
     return {
       status: "ready",
@@ -58,7 +63,7 @@ export function getSignedUrlState(
 
 type SignedUrlQuery = Pick<
   UseQueryResult<
-    { url: string; contentLength?: number; urlTtlSeconds: number },
+    { url: string | null; contentLength?: number; urlTtlSeconds: number },
     unknown
   >,
   "data" | "dataUpdatedAt" | "isError" | "isFetching" | "refetch"

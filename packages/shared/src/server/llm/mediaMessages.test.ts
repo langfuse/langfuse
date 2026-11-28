@@ -11,6 +11,7 @@ vi.mock("../../db", () => ({
 }));
 vi.mock("../s3", () => ({
   getS3MediaStorageClient: () => ({
+    canOverrideResponseHeaders: true,
     getSignedUrl: mediaStorageMocks.getSignedUrl,
     downloadBytes: mediaStorageMocks.downloadBytes,
   }),

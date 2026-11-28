@@ -12,7 +12,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
   datasetItemMediaReferenceKey,
-  resolveDatasetItemMediaReferences,
+  resolveDatasetItemMediaReferencesForDisplay,
 } from "@/src/features/media/server/datasetItemMediaReferences";
 import { MediaContentType } from "@/src/features/media/validation";
 import {
@@ -1046,10 +1046,11 @@ export const datasetRouter = createTRPCRouter({
       }
 
       const item = { id: input.datasetItemId, validFrom };
-      const referencesByItem = await resolveDatasetItemMediaReferences({
-        projectId: input.projectId,
-        items: [item],
-      });
+      const referencesByItem =
+        await resolveDatasetItemMediaReferencesForDisplay({
+          projectId: input.projectId,
+          items: [item],
+        });
 
       return referencesByItem.get(datasetItemMediaReferenceKey(item)) ?? [];
     }),

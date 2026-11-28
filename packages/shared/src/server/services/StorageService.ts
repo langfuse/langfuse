@@ -140,6 +140,23 @@ type UploadWithSignedUrl = UploadFile & {
 };
 
 /**
+ * Whether a provider error says the object does not exist. Azure and OCI set
+ * `statusCode`, GCS sets `code` and the S3 SDK sets `$metadata.httpStatusCode`.
+ */
+function isObjectNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const status =
+    ("statusCode" in err && err.statusCode) ||
+    ("code" in err && err.code) ||
+    ("$metadata" in err &&
+      err.$metadata &&
+      typeof err.$metadata === "object" &&
+      "httpStatusCode" in err.$metadata &&
+      err.$metadata.httpStatusCode);
+  return status === 404;
+}
+
+/**
  * Check if an error is a DNS lookup failure (EAI_AGAIN)
  * and throw ServiceUnavailableError if so, otherwise rethrow the original error
  */
@@ -391,6 +408,13 @@ export interface StorageService {
   }): Promise<StorageFilePage>;
 
   /**
+   * Whether signed URLs can pin response headers such as Content-Type and
+   * Content-Disposition. Without it, a URL holder controls how a browser
+   * renders the object.
+   */
+  readonly canOverrideResponseHeaders: boolean;
+
+  /**
    * `responseContentType` overrides the stored Content-Type for this URL only.
    * Providers that cannot override it serve the object as an attachment instead.
    */
@@ -402,6 +426,12 @@ export interface StorageService {
   ): Promise<string>;
 
   getObjectContentLength(path: string): Promise<number | undefined>;
+
+  /**
+   * The Content-Type the provider serves the stored object with, or
+   * `undefined` when the object does not exist.
+   */
+  getObjectContentType(path: string): Promise<string | undefined>;
 
   getSignedUploadUrl(params: {
     path: string;
@@ -520,6 +550,7 @@ export class StorageServiceFactory {
 
 let azureContainersExists: Record<string, boolean> = {};
 class AzureBlobStorageService implements StorageService {
+  readonly canOverrideResponseHeaders = true;
   private client: ContainerClient;
   private container: string;
   private externalEndpoint: string | undefined;
@@ -870,6 +901,18 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
+  public async getObjectContentType(path: string): Promise<string | undefined> {
+    try {
+      await this.createContainerIfNotExists();
+      const properties = await this.client.getBlobClient(path).getProperties();
+      return properties.contentType;
+    } catch (err) {
+      if (isObjectNotFoundError(err)) return undefined;
+      logger.error(`Failed to read Azure Blob Storage metadata ${path}`, err);
+      handleStorageError(err, "read Azure Blob Storage metadata");
+    }
+  }
+
   public async getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
@@ -908,6 +951,7 @@ class AzureBlobStorageService implements StorageService {
 }
 
 class S3StorageService implements StorageService {
+  readonly canOverrideResponseHeaders = true;
   private client: S3Client;
   private signedUrlClient: S3Client;
   private bucketName: string;
@@ -1293,6 +1337,22 @@ class S3StorageService implements StorageService {
     }
   }
 
+  public async getObjectContentType(path: string): Promise<string | undefined> {
+    try {
+      const response = await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: path,
+        }),
+      );
+      return response.ContentType;
+    } catch (err) {
+      if (isObjectNotFoundError(err)) return undefined;
+      this.logClientFailure(`Failed to read S3 object metadata ${path}`, err);
+      handleStorageError(err, "read S3 object metadata");
+    }
+  }
+
   public async deleteFiles(paths: string[]): Promise<void> {
     await backOff(() => this.deleteFilesNonRetrying(paths), {
       numOfAttempts: 3,
@@ -1369,6 +1429,7 @@ class S3StorageService implements StorageService {
 }
 
 class GoogleCloudStorageService implements StorageService {
+  readonly canOverrideResponseHeaders = true;
   private storage: Storage;
   private bucket: Bucket;
 
@@ -1623,6 +1684,17 @@ class GoogleCloudStorageService implements StorageService {
     }
   }
 
+  public async getObjectContentType(path: string): Promise<string | undefined> {
+    try {
+      const [metadata] = await this.bucket.file(path).getMetadata();
+      return metadata.contentType;
+    } catch (err) {
+      if (isObjectNotFoundError(err)) return undefined;
+      logger.error(`Failed to read Google Cloud Storage metadata ${path}`, err);
+      handleStorageError(err, "read Google Cloud Storage metadata");
+    }
+  }
+
   public async getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
@@ -1687,6 +1759,11 @@ class GoogleCloudStorageService implements StorageService {
 }
 
 class OCIObjectStorageService implements StorageService {
+  // Pre-authenticated request links take response-header overrides such as
+  // `httpResponseContentType` only as query parameters the request does not
+  // sign, so a link holder can strip them:
+  // https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingpreauthenticatedrequests_topic-Working_with_PreAuthenticated_Requests.htm
+  readonly canOverrideResponseHeaders = false;
   private client?: objectstorage.ObjectStorageClient;
   private clientInit: Promise<void>;
   private bucketName: string;
@@ -2173,8 +2250,8 @@ class OCIObjectStorageService implements StorageService {
       }
       const baseUrl = new URL(base);
       const parUrl = new URL(accessUri, baseUrl);
-      // PARs cannot override the Content-Type, so a requested override falls
-      // back to a download rather than serving an unverified stored type inline.
+      // Response-header overrides on a PAR are unsigned query parameters, so a
+      // requested override only adds a download hint the link holder can strip.
       if (asAttachment || responseContentType) {
         parUrl.searchParams.set("download", "1");
       }
@@ -2201,6 +2278,22 @@ class OCIObjectStorageService implements StorageService {
       });
       return response.contentLength;
     } catch (err) {
+      logger.error(`Failed to read OCI Object Storage metadata ${path}`, err);
+      handleStorageError(err, "read OCI Object Storage metadata");
+    }
+  }
+
+  public async getObjectContentType(path: string): Promise<string | undefined> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const response = await client.headObject({
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+      });
+      return response.contentType;
+    } catch (err) {
+      if (isObjectNotFoundError(err)) return undefined;
       logger.error(`Failed to read OCI Object Storage metadata ${path}`, err);
       handleStorageError(err, "read OCI Object Storage metadata");
     }

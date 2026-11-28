@@ -8,6 +8,7 @@ import {
 } from "@/src/features/media/validation";
 import {
   type DatasetItemMediaField,
+  ForbiddenError,
   InternalServerError,
   isBaseError,
   LangfuseNotFoundError,
@@ -166,6 +167,11 @@ export async function getMedia(params: { projectId: string; mediaId: string }) {
     contentType: media.contentType,
     ttlSeconds,
   });
+  if (!url) {
+    throw new ForbiddenError(
+      `Media of type ${media.contentType} cannot be downloaded from this storage provider`,
+    );
+  }
 
   return GetMediaResponseSchema.parse({
     mediaId,

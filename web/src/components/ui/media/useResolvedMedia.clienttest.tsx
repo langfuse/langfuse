@@ -181,6 +181,19 @@ describe("useResolvedMedia", () => {
     await waitFor(() => expect(result.current.url).toBe(refreshedMedia.url));
   });
 
+  it("reports media the server returns without a URL as unavailable", () => {
+    queryClient.setQueryData(queryKey, { ...cachedMedia, url: null });
+    const { result } = renderMediaHook();
+
+    act(() => result.current.onOpenChange(true));
+    expect(result.current.status).toBe("unavailable");
+    expect(result.current.url).toBeUndefined();
+
+    reopenAt(result, "2026-10-22T09:00:50.000Z");
+    expect(result.current.status).toBe("unavailable");
+    expect(getMedia).not.toHaveBeenCalled();
+  });
+
   it("retries a failed fetch on the next open", async () => {
     queryClient.removeQueries({ queryKey });
     getMedia

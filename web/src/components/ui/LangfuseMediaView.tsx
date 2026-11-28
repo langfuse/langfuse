@@ -17,6 +17,7 @@ import {
 import { mediaUrlQueryOptions } from "@/src/features/media/constants/mediaUrlQueryOptions";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
+import { MEDIA_DOWNLOAD_UNAVAILABLE_MESSAGE } from "@/src/features/media/constants/mediaDownloadUnavailableMessage";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
@@ -76,18 +77,7 @@ export const LangfuseMediaView = ({
   const projectId = useProjectIdFromURL();
 
   if (!mediaData) {
-    const text = "Invalid Langfuse Media Tag";
-
-    return (
-      <div className="flex items-center gap-2">
-        <span title={text}>
-          <ImageOff size="base" />
-        </span>
-        <span className="truncate text-sm" title={text}>
-          {text}
-        </span>
-      </div>
-    );
+    return <MediaFallback text="Invalid Langfuse Media Tag" />;
   }
 
   const isOversizedField =
@@ -120,6 +110,9 @@ export const LangfuseMediaView = ({
 
   const mediaUrl = data?.url;
 
+  if (mediaUrl === null) {
+    return <MediaFallback text={MEDIA_DOWNLOAD_UNAVAILABLE_MESSAGE} />;
+  }
   if (!mediaUrl) return null;
 
   if (variant === "icon" || variant === "preview") {
@@ -150,6 +143,19 @@ export const LangfuseMediaView = ({
   }
   return <MediaFileView src={mediaUrl} contentType={mediaData.type} />;
 };
+
+function MediaFallback({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span title={text}>
+        <ImageOff size="base" />
+      </span>
+      <span className="truncate text-sm" title={text}>
+        {text}
+      </span>
+    </div>
+  );
+}
 
 function AudioPlayer({ src }: { src?: string }) {
   if (!src) return null;
