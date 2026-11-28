@@ -70,3 +70,10 @@ ai_gateway_guardrail_rules:
   - .github/ci-paths.yml
   - deny.toml
   - packages/ai-gateway-guardrail-rules/**
+
+# Any change outside worker/: the web UI suites (client, Storybook, Playwright)
+# never import, build or start the worker. A negated pattern matches every path
+# it does not exclude, so this is false only when every changed file is under
+# worker/. tests-web and e2e-server-tests start the worker, so they always run.
+web_ui:
+  - "!worker/**"
