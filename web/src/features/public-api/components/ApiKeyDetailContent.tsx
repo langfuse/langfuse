@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { type ReactNode, useState } from "react";
-import { Braces, FileCode, type IconComponent } from "@langfuse/icons";
+import { Braces, FileCode, Plug, type IconComponent } from "@langfuse/icons";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -43,6 +43,7 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
   const { scope, secretKey, baseUrl, className, showMcpSection } = props;
   const projectId = exampleProjectId(props);
   const [activeTab, setActiveTab] = useState<string>("sdk");
+  const [activeMcpTab, setActiveMcpTab] = useState<string>("claude-code");
 
   const tabs: UsageTab[] = [
     {
@@ -91,42 +92,30 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       secret: secretKey,
     },
   ];
-  if (showMcpSection) {
-    for (const command of buildMcpHarnessCommands(
-      `${baseUrl}/api/public/mcp`,
-      secretKey,
-    )) {
-      tabs.push({
-        id: command.id,
-        label: command.label,
-        icon: command.icon,
-        description: (
-          <>
-            {command.install
-              ? `Add Langfuse to ${command.product} with one click, or add this to ${command.install.configFile}.`
-              : `Run in your terminal to connect ${command.product} to Langfuse.`}{" "}
-            For more information see the{" "}
-            <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
-              MCP setup docs
-            </DocsLink>
-            .
-          </>
-        ),
-        code: command.code,
-        language: command.language,
-        secret: command.secret,
-        install: command.install && {
-          label: `Add to ${command.product}`,
-          // Built on click so the key-bearing link never sits in the DOM.
-          open: () => {
-            if (!command.install) return;
-            // eslint-disable-next-line @repo/no-location-navigation -- a cursor:// install link opens the Cursor app, not an in-app page
-            window.location.href = command.install.link();
+  const mcpTabs: UsageTab[] = showMcpSection
+    ? buildMcpHarnessCommands(`${baseUrl}/api/public/mcp`, secretKey).map(
+        (command) => ({
+          id: command.id,
+          label: command.label,
+          icon: command.icon,
+          description: command.install
+            ? `Add Langfuse to ${command.product} with one click, or add this to ${command.install.configFile}.`
+            : `Run in your terminal to connect ${command.product} to Langfuse.`,
+          code: command.code,
+          language: command.language,
+          secret: command.secret,
+          install: command.install && {
+            label: `Add to ${command.product}`,
+            // Built on click so the key-bearing link never sits in the DOM.
+            open: () => {
+              if (!command.install) return;
+              // eslint-disable-next-line @repo/no-location-navigation -- a cursor:// install link opens the Cursor app, not an in-app page
+              window.location.href = command.install.link();
+            },
           },
-        },
-      });
-    }
-  }
+        }),
+      )
+    : [];
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
@@ -142,47 +131,81 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       <div className="flex flex-col gap-2">
         <h3 className="font-bold">Usage instructions</h3>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex h-9 items-center border-b">
-            <Tabs.List
-              variant="underline"
-              overflow="menu"
-              aria-label="Usage instructions"
-            >
-              {tabs.map((tab) => (
-                <Tabs.Trigger
-                  key={tab.id}
-                  value={tab.id}
-                  label={tab.label}
-                  icon={tab.icon}
-                />
-              ))}
-            </Tabs.List>
-          </div>
+          <Tabs.List variant="underline" aria-label="Usage instructions">
+            {tabs.map((tab) => (
+              <Tabs.Trigger
+                key={tab.id}
+                value={tab.id}
+                label={tab.label}
+                icon={tab.icon}
+              />
+            ))}
+            {mcpTabs.length > 0 ? (
+              <Tabs.Trigger value="mcp" label="MCP" icon={Plug} />
+            ) : null}
+          </Tabs.List>
           {tabs.map((tab) => (
             <Tabs.Content key={tab.id} value={tab.id}>
-              <div className="flex flex-col gap-2 pt-4">
-                {tab.description ? (
-                  <p className="text-muted-foreground text-sm">
-                    {tab.description}
-                  </p>
-                ) : null}
-                {tab.install ? (
-                  <div className="ph-no-capture">
-                    <Button
-                      text={tab.install.label}
-                      variant="secondary"
-                      onClick={tab.install.open}
-                    />
-                  </div>
-                ) : null}
-                <GatewaySecretKeyContext value={{ value: tab.secret }}>
-                  <StepCodeSection code={tab.code} language={tab.language} />
-                </GatewaySecretKeyContext>
-              </div>
+              <UsagePanel tab={tab} className="pt-4" />
             </Tabs.Content>
           ))}
+          {mcpTabs.length > 0 ? (
+            <Tabs.Content value="mcp">
+              <div className="flex flex-col gap-3 pt-4">
+                <p className="text-muted-foreground text-sm">
+                  Connect your coding agent to the Langfuse MCP server. For more
+                  information see the{" "}
+                  <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
+                    MCP setup docs
+                  </DocsLink>
+                  .
+                </p>
+                <Tabs value={activeMcpTab} onValueChange={setActiveMcpTab}>
+                  <Tabs.List variant="inset" size="sm" aria-label="MCP client">
+                    {mcpTabs.map((tab) => (
+                      <Tabs.Trigger
+                        key={tab.id}
+                        value={tab.id}
+                        label={tab.label}
+                        icon={tab.icon}
+                      />
+                    ))}
+                  </Tabs.List>
+                  {mcpTabs.map((tab) => (
+                    <Tabs.Content key={tab.id} value={tab.id}>
+                      <UsagePanel tab={tab} className="pt-3" />
+                    </Tabs.Content>
+                  ))}
+                </Tabs>
+              </div>
+            </Tabs.Content>
+          ) : null}
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+/** UsagePanel shows a usage tab's description, install button and snippet. */
+function UsagePanel(props: { tab: UsageTab; className?: string }) {
+  const { tab } = props;
+  return (
+    <div className={cn("flex flex-col gap-2", props.className)}>
+      {tab.description ? (
+        <p className="text-muted-foreground text-sm">{tab.description}</p>
+      ) : null}
+      {tab.install ? (
+        <div className="ph-no-capture">
+          <Button
+            text={tab.install.label}
+            variant="secondary"
+            onClick={tab.install.open}
+          />
+        </div>
+      ) : null}
+      <GatewaySecretKeyContext value={{ value: tab.secret }}>
+        <StepCodeSection code={tab.code} language={tab.language} />
+      </GatewaySecretKeyContext>
     </div>
   );
 }

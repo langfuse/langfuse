@@ -72,20 +72,6 @@ export const WithoutRoleSelection = meta.story({
 
 const SECRET_KEY = "sk-lf-4d164bc4-3275-43dd-8b18-150e006da4e7";
 
-/** selectUsageTab opens a usage tab, from the overflow menu when it doesn't fit the row. */
-async function selectUsageTab(name: string) {
-  const screen = within(document.body);
-  const tab = screen.queryByRole("tab", { name });
-  if (tab) {
-    await userEvent.click(tab);
-    return;
-  }
-  await userEvent.click(screen.getByRole("button", { name: "More tabs" }));
-  // The menu renders in a portal outside the dialog, which the dialog marks aria-hidden.
-  await userEvent.click(
-    await screen.findByRole("menuitem", { name, hidden: true }),
-  );
-}
 const PROJECT_ID = "cm1demoproject00000000001";
 
 export const Created = meta.story({
@@ -152,7 +138,10 @@ export const CreatedOrganizationKey = meta.story({
       "langfuse-project-id: <your-project-id>",
     );
 
-    await userEvent.click(screen.getByRole("tab", { name: "Claude" }));
+    await userEvent.click(screen.getByRole("tab", { name: "MCP" }));
+    await expect(
+      screen.getByRole("tab", { name: "Claude", selected: true }),
+    ).toBeInTheDocument();
     await expect(body.textContent).toContain("Authorization: Bearer");
     await expect(body.textContent).not.toContain("Authorization: Basic");
 
@@ -166,7 +155,7 @@ export const CreatedOrganizationKey = meta.story({
     );
     await expect(body.textContent).not.toContain(SECRET_KEY);
 
-    await selectUsageTab("Cursor");
+    await userEvent.click(screen.getByRole("tab", { name: "Cursor" }));
     await expect(
       screen.getByRole("button", { name: "Add to Cursor" }),
     ).toBeInTheDocument();
@@ -175,7 +164,7 @@ export const CreatedOrganizationKey = meta.story({
     await expect(body.innerHTML).not.toContain("cursor-deeplink");
     await expect(body.innerHTML).not.toContain(SECRET_KEY);
 
-    await selectUsageTab("Pi");
+    await userEvent.click(screen.getByRole("tab", { name: "Pi" }));
     await expect(body.textContent).toContain("pi mcp add langfuse");
   },
 });
