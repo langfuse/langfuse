@@ -134,6 +134,13 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
   const toolCalls: ReturnType<typeof toToolCallPart>[] = [];
   const toolResults: Extract<NormalizedMessagePart, { type: "tool-result" }>[] =
     [];
+  // Data next to text or images renders inline; otherwise the renderer would
+  // hide it behind the passthrough toggle.
+  const inlineData = message.parts.some(
+    (part) =>
+      part.type === "text" ||
+      (part.type === "file" && part.mediaType?.startsWith("image/")),
+  );
 
   for (const part of message.parts) {
     switch (part.type) {
@@ -177,7 +184,14 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
         }
         break;
       case "data":
-        jsonParts.push(part.value);
+        if (inlineData) {
+          contentParts.push({
+            type: "text",
+            text: "```json\n" + JSON.stringify(part.value, null, 2) + "\n```",
+          });
+        } else {
+          jsonParts.push(part.value);
+        }
         break;
       case "custom":
         jsonParts.push({ kind: part.kind, value: part.value });
@@ -185,9 +199,11 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
     }
   }
 
-  const hasImages = contentParts.some((part) => typeof part !== "string");
+  const hasStructuredParts = contentParts.some(
+    (part) => typeof part !== "string",
+  );
   const content = (() => {
-    if (hasImages) {
+    if (hasStructuredParts) {
       return contentParts.map((part) =>
         typeof part === "string" ? { type: "text", text: part } : part,
       );

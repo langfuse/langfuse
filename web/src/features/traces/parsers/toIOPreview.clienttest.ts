@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { NormalizedIO } from "@langfuse/shared/src/utils/normalized-io";
+import { deepParseJsonIterative } from "@langfuse/shared/src/utils/json";
+import {
+  normalizeSpanIO,
+  type NormalizedIO,
+} from "@langfuse/shared/src/utils/normalized-io";
+import { WORKER_PARSE_LIMITS } from "@/src/workers/json-parser.protocol";
 import { toIOPreview } from "./toIOPreview";
 
 const emptySpan = { input: undefined, output: undefined, metadata: undefined };
@@ -163,5 +168,78 @@ describe("toIOPreview", () => {
         content: "orphaned",
       },
     ]);
+  });
+
+  describe("data parts", () => {
+    const userMessage = (
+      parts: NormalizedIO["messages"][number]["parts"],
+    ): NormalizedIO => ({
+      span: emptySpan,
+      toolDefinitions: [],
+      messages: [{ role: "user", source: "input", parts }],
+    });
+    const jsonText = (value: unknown) =>
+      "```json\n" + JSON.stringify(value, null, 2) + "\n```";
+
+    it("renders a JSON-string text part inline between images", () => {
+      const imageRef = (id: string) =>
+        `@@@langfuseMedia:type=image/jpeg|id=${id}|source=base64_data_uri@@@`;
+      const input = {
+        model: "gpt-4.1",
+        input: [
+          {
+            role: "user",
+            content: [
+              { type: "input_image", image_url: imageRef("media-1") },
+              {
+                type: "input_text",
+                text: JSON.stringify({ city: "Paris", units: "metric" }),
+              },
+              { type: "input_image", image_url: imageRef("media-2") },
+            ],
+          },
+        ],
+      };
+
+      const result = toIOPreview(
+        normalizeSpanIO({
+          input: deepParseJsonIterative(input, WORKER_PARSE_LIMITS),
+          output: undefined,
+          metadata: undefined,
+        }),
+      );
+      const message = result.allMessages.find((m) => m.role === "user");
+
+      expect(message?.json).toBeUndefined();
+      expect(message?.content).toEqual([
+        { type: "image_url", image_url: { url: imageRef("media-1") } },
+        { type: "text", text: jsonText({ city: "Paris", units: "metric" }) },
+        { type: "image_url", image_url: { url: imageRef("media-2") } },
+      ]);
+    });
+
+    it("renders text and data as separate parts when there are no images", () => {
+      const message = toIOPreview(
+        userMessage([
+          { type: "text", text: "Context:" },
+          { type: "data", value: { a: 1 } },
+        ]),
+      ).allMessages[0];
+
+      expect(message?.json).toBeUndefined();
+      expect(message?.content).toEqual([
+        { type: "text", text: "Context:" },
+        { type: "text", text: jsonText({ a: 1 }) },
+      ]);
+    });
+
+    it("keeps a data-only message as JSON", () => {
+      const message = toIOPreview(
+        userMessage([{ type: "data", value: { a: 1 } }]),
+      ).allMessages[0];
+
+      expect(message?.content).toBeUndefined();
+      expect(message?.json).toEqual({ a: 1 });
+    });
   });
 });
