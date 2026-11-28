@@ -3,7 +3,7 @@
  *
  * Serves both MCP protocol eras through the SDK's createMcpHandler: 2026-07-28
  * requests directly, 2025-era requests through its stateless legacy fallback.
- * Every request gets a fresh server from createMcpServer(context).
+ * Every request gets a fresh server from createMcpServer(connection).
  */
 
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -16,7 +16,7 @@ import {
 } from "@modelcontextprotocol/server";
 import { getCurrentSpan, logger } from "@langfuse/shared/src/server";
 import { formatErrorForUser } from "../core/error-formatting";
-import type { ServerContext } from "../types";
+import type { McpConnection } from "../types";
 import { createMcpServer } from "./mcpServer";
 import { recordResourceRead } from "./resources";
 
@@ -91,12 +91,12 @@ const clientSupportAttributes = (
  * - POST: JSON-RPC requests of either protocol era
  * - GET/DELETE: 405, since serving is stateless
  *
- * @param context - Server context from the authenticated request
+ * @param connection - The authenticated connection
  * @param req - Next.js API request (body already parsed)
  * @param res - Next.js API response
  */
 export async function handleMcpRequest(
-  context: ServerContext,
+  connection: McpConnection,
   req: NextApiRequest,
   res: NextApiResponse,
 ): Promise<void> {
@@ -118,7 +118,7 @@ export async function handleMcpRequest(
     const handler = createMcpHandler(
       ({ era }) => {
         span?.setAttribute("mcp.protocol.era", era);
-        return createMcpServer(context, clientCapabilities);
+        return createMcpServer(connection, clientCapabilities);
       },
       {
         onerror: (error) => {

@@ -11,58 +11,19 @@ import type { McpToolName } from "./server/tools";
  * Following stateless design pattern from Sentry MCP server.
  */
 
-/**
- * Server context captured from authenticated request.
- * Stateless design - all context from request, no session storage.
- *
- * SECURITY & COMPLIANCE:
- *
- * Audit Logging: All mutating operations must create audit log entries
- * using @/src/features/audit-logs/auditLog
- *
- * PII Protection: userId is PII - use sanitized logging
- *
- * RBAC: Check accessLevel and scope before operations
- *
- * Rate Limiting: Use RateLimitService from public API
- *
- * @see /web/src/features/public-api/server/apiAuth.ts - Auth patterns
- * @see /web/src/features/audit-logs/auditLog.ts - Audit logging
- * @see /web/src/features/rbac/README.md - RBAC patterns
- */
-export interface ServerContext {
-  /**
-   * Project ID from authenticated API key
-   * MCP requires project-scoped access only (never null)
-   */
-  projectId: string;
-
-  /** Organization ID from authenticated API key */
-  orgId: string;
-
-  /** User ID from authenticated user (optional for API key auth) */
-  userId?: string;
+/** McpConnection is the authenticated API key of one MCP request, before a tool call picks its project. */
+export interface McpConnection {
+  /** auth is the API key's policy context that every tool call is authorized against. */
+  auth: AuthorizationContext;
 
   /** API Key ID for audit logging */
   apiKeyId: string;
 
-  /**
-   * Access level from API key
-   * MCP enforces "project" level access only
-   */
-  accessLevel: "project";
-
-  /** Public key used for authentication */
+  /** Public key of the API key, stamped on audit events */
   publicKey: string;
 
-  /** Billing plan of the organization, for plan-based rate limiting */
-  plan: ApiAccessScope["plan"];
-
-  /** Org-level rate limit overrides from the cloud config */
-  rateLimitOverrides: ApiAccessScope["rateLimitOverrides"];
-
-  /** The org's opt-in for read-access audit events */
-  accessAuditLogEnabled: ApiAccessScope["accessAuditLogEnabled"];
+  /** boundProjectId is the project a project key is bound to. */
+  boundProjectId?: string;
 
   /** User agent from the MCP client's HTTP request */
   userAgent?: string;
@@ -72,9 +33,45 @@ export interface ServerContext {
 
   /** In-app-agent-specific MCP authorization state. */
   inAppAgent?: InAppAgentContext;
+}
 
-  /** Resolved policy-core context, present only once the new authz path resolves the connection (enforce). */
-  auth?: AuthorizationContext;
+/**
+ * ServerContext is a connection resolved to the one project a tool call runs
+ * in. Stateless design: all context comes from the request, no session storage.
+ *
+ * SECURITY & COMPLIANCE:
+ *
+ * Audit Logging: All mutating operations must create audit log entries
+ * using @/src/features/audit-logs/auditLog
+ *
+ * PII Protection: userId is PII - use sanitized logging
+ *
+ * RBAC: tools/call authorizes the tool's action on projectId before the handler runs
+ *
+ * @see /web/src/features/audit-logs/auditLog.ts - Audit logging
+ * @see /web/src/features/rbac/README.md - RBAC patterns
+ */
+export interface ServerContext extends McpConnection {
+  /** The project the tool call runs in */
+  projectId: string;
+
+  /** The organization that owns projectId */
+  orgId: string;
+
+  /** User ID from authenticated user (optional for API key auth) */
+  userId?: string;
+
+  /** Tools always run with project access to projectId */
+  accessLevel: "project";
+
+  /** Billing plan of the organization, for plan-based rate limiting */
+  plan: ApiAccessScope["plan"];
+
+  /** Org-level rate limit overrides from the cloud config */
+  rateLimitOverrides: ApiAccessScope["rateLimitOverrides"];
+
+  /** The org's opt-in for read-access audit events */
+  accessAuditLogEnabled: ApiAccessScope["accessAuditLogEnabled"];
 }
 
 /** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */

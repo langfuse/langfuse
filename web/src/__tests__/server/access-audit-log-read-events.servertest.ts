@@ -64,6 +64,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { handleGetScore } from "@/src/features/mcp/server/scores/tools/getScore";
 import type { ServerContext } from "@/src/features/mcp/types";
+import { mockAuthContext } from "@/src/__tests__/server/mcp-auth-fixtures";
 import getTraceHandler from "@/src/pages/api/public/traces/[traceId]";
 import getScoresV3Handler from "@/src/pages/api/public/v3/scores";
 import getObservationsV2Handler from "@/src/pages/api/public/v2/observations";
@@ -248,6 +249,11 @@ describe("access events on the MCP getScore tool", () => {
       rateLimitOverrides: [],
       accessAuditLogEnabled: true,
       auditRequest: { ip: "203.0.113.7", userAgent: "mcp-client" },
+      auth: mockAuthContext({
+        orgId: fixture.orgId,
+        projectId: fixture.projectId,
+        actions: ["scores:read"],
+      }),
     };
   }
 

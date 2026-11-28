@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { isoDateTime } from "@langfuse/shared";
 import { mockServerContext } from "../mcp-helpers";
+import { mockAuthContext } from "@/src/__tests__/server/mcp-auth-fixtures";
 
 import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { defineTool } from "../../../features/mcp/core/define-tool";
@@ -98,6 +99,11 @@ describe("defineTool", () => {
       publicKey: "pk-lf-test",
       plan: "oss",
       rateLimitOverrides: [],
+      auth: mockAuthContext({
+        orgId: "org-id",
+        projectId: "project-id",
+        actions: [],
+      }),
       accessAuditLogEnabled: false,
     };
     const input = {

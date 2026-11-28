@@ -41,6 +41,7 @@ vi.mock("@/src/env.mjs", () => ({
 
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 import { inputRequired, ProtocolErrorCode } from "@modelcontextprotocol/server";
+import { mockAuthContext } from "@/src/__tests__/server/mcp-auth-fixtures";
 
 const context: ServerContext = {
   projectId: "project-id",
@@ -51,6 +52,11 @@ const context: ServerContext = {
   plan: "oss",
   rateLimitOverrides: [],
   accessAuditLogEnabled: false,
+  auth: mockAuthContext({
+    orgId: "org-id",
+    projectId: "project-id",
+    actions: [],
+  }),
 };
 
 describe("runMcpTool outcome telemetry", () => {

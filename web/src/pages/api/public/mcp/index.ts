@@ -19,7 +19,9 @@
  * the transport layer needs direct response control for both JSON and SSE responses.
  * Error handling, header validation, and CORS are implemented in this route layer.
  *
- * Authentication: BasicAuth (Project ID:Secret Key) - LF-1927
+ * Authentication: the API key's secret key, as BasicAuth (Project ID:Secret Key)
+ * or Bearer. Organization keys are not bound to a project; their tool calls
+ * pass `projectId`, and each call is authorized against that project.
  * Resources: Added in LF-1928
  * Tools: Added in LF-1929
  */
@@ -28,15 +30,15 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
 import { validateMcpRequestSecurity } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
-import { type ServerContext } from "@/src/features/mcp/types";
+import { type McpConnection } from "@/src/features/mcp/types";
+import { type Principal } from "@/src/features/auth/policy/types";
 import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
@@ -47,9 +49,10 @@ import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/se
  *
  * Request flow:
  * 1. Validate Host/Origin headers and handle CORS
- * 2. Authenticate request using BasicAuth (Project ID:Secret Key)
+ * 2. Authenticate the API key's secret key
  * 3. Check rate limits
- * 4. Extract ServerContext from authenticated API key
+ * 4. Build the McpConnection from the authenticated API key; each tool call
+ *    resolves and authorizes its project (see resolveToolContext)
  * 5. Create fresh MCP server instance with context in closures
  * 6. Connect to SSE transport
  * 7. Handle MCP protocol communication
@@ -71,11 +74,9 @@ export default async function handler(
       return;
     }
 
-    // Each tool authorizes its own action.
-    const authResult = await shadowAuth({
-      req,
-      action: __dangerouslySkipAuthz,
-      allowedAccessLevels: ["project"],
+    // Each tool call authorizes its own action on its own project.
+    const authResult = await authenticator.authenticate({
+      headers: req.headers,
       allowInAppAgentKey: true,
     });
 
@@ -83,25 +84,22 @@ export default async function handler(
       throw authResult.error;
     }
 
-    const { scope, ctx } = authResult;
+    const auth = authResult.context;
+    const principal = requireSecretKeyPrincipal(auth.principal);
 
-    // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (scope.accessLevel !== "project" || !scope.projectId) {
-      throw new ForbiddenError(
-        "Access denied: MCP requires project-scoped API keys with BasicAuth",
-      );
-    }
+    const { orgId, projectId: boundProjectId } = principal.boundResource;
+    const org = principal.organizations.find((o) => o.orgId === orgId);
 
     addUserToSpan({
-      apiKeyId: scope.apiKeyId,
-      publicKey: scope.publicKey,
-      projectId: scope.projectId,
-      orgId: scope.orgId,
-      plan: scope.plan,
+      apiKeyId: principal.apiKeyId,
+      publicKey: principal.publicKey,
+      projectId: boundProjectId,
+      orgId,
+      plan: org?.plan,
     });
 
     // Check if ingestion is suspended due to usage limits
-    if (scope.isIngestionSuspended) {
+    if (org?.isIngestionSuspended) {
       throw new ForbiddenError(
         "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
       );
@@ -109,41 +107,31 @@ export default async function handler(
 
     // Rate limit MCP requests
     const rateLimitCheck =
-      await RateLimitService.getInstance().rateLimitRequest(
-        scope,
-        "public-api",
-      );
+      await RateLimitService.getInstance().rateLimitRequest(auth, "public-api");
 
     if (rateLimitCheck?.isRateLimited()) {
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Build ServerContext from authenticated scope. In-app-agent keys need a
-    // run override for mutating tools; read-only tools remain available
-    // without it via their MCP readOnlyHint annotation.
-    const context: ServerContext = {
-      projectId: scope.projectId,
-      orgId: scope.orgId,
-      userId: undefined, // API keys don't have associated users
-      apiKeyId: scope.apiKeyId,
-      accessLevel: "project",
-      publicKey: scope.publicKey,
-      plan: scope.plan,
-      rateLimitOverrides: scope.rateLimitOverrides,
-      accessAuditLogEnabled: scope.accessAuditLogEnabled,
+    // In-app-agent keys need a run override for mutating tools; read-only
+    // tools remain available without it via their MCP readOnlyHint annotation.
+    const connection: McpConnection = {
+      auth,
+      apiKeyId: principal.apiKeyId,
+      publicKey: principal.publicKey,
+      boundProjectId,
       userAgent: req.headers["user-agent"],
       auditRequest: getAuditRequestContext(
         req.headers,
         req.socket.remoteAddress,
       ),
-      inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
-      auth: ctx,
+      inAppAgent: getInAppAgentContext(req, principal.isInAppAgentKey),
     };
 
     logger.debug("MCP request authenticated", {
       method: req.method,
-      projectId: context.projectId,
-      orgId: context.orgId,
+      boundProjectId,
+      orgId,
       userAgent: req.headers["user-agent"],
       contentType: req.headers["content-type"],
       accept: req.headers.accept,
@@ -151,7 +139,7 @@ export default async function handler(
 
     // Builds a fresh server per request with the context captured in closures,
     // and routes the request by protocol era.
-    await handleMcpRequest(context, req, res);
+    await handleMcpRequest(connection, req, res);
   } catch (error) {
     // Client-caused errors (bad Host/Origin header -> "Invalid Host header",
     // invalid input, auth failures) are expected, high-volume noise fired per
@@ -192,10 +180,22 @@ export default async function handler(
   }
 }
 
+type ApiKeyPrincipal = Extract<Principal, { kind: "apiKey" }>;
+
+/** requireSecretKeyPrincipal admits an API key presented with its secret key; a public key alone only grants score ingestion. */
+function requireSecretKeyPrincipal(principal: Principal): ApiKeyPrincipal {
+  if (principal.kind === "apiKey" && principal.presentation === "privateKey") {
+    return principal;
+  }
+  throw new ForbiddenError(
+    "Access denied: MCP requires an API key's secret key",
+  );
+}
+
 export function getInAppAgentContext(
   req: NextApiRequest,
   isInAppAgentKey: boolean | undefined,
-): ServerContext["inAppAgent"] {
+): McpConnection["inAppAgent"] {
   if (isInAppAgentKey !== true) {
     return undefined;
   }

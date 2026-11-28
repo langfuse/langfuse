@@ -34,6 +34,7 @@ vi.mock(
   }),
 );
 
+import { withProjectIdArgument } from "@/src/features/mcp/server/toolContext";
 import {
   Client,
   InMemoryTransport,
@@ -639,13 +640,13 @@ describe("MCP Read Tools", () => {
       ).resolves.toBeDefined();
     });
 
-    it("should not expose projectId in its input schema", () => {
-      const properties = listMonitorsTool.inputSchema.properties as Record<
-        string,
-        unknown
-      >;
-
-      expect(properties.projectId).toBeUndefined();
+    it("should take projectId only as the project selector added for unbound keys", () => {
+      expect(listMonitorsTool.inputSchema.properties).not.toHaveProperty(
+        "projectId",
+      );
+      const unboundSchema = withProjectIdArgument(listMonitorsTool.inputSchema);
+      expect(unboundSchema.properties).toHaveProperty("projectId");
+      expect(unboundSchema.required).toContain("projectId");
     });
 
     it("should list, filter, order, and paginate monitors in the current project", async () => {

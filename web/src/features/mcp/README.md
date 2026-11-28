@@ -22,7 +22,7 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
    - Navigate to `http://localhost:3000/project/{project-id}/settings`
    - Create a project-scoped API key and copy its secret key (`sk-lf-...`)
    - Copy the project ID from the URL or the project settings
-   - Note: Organization-level keys are not supported
+   - Organization keys work too, across every project of the organization; see [Multi-project access](#multi-project-access-organization-keys)
 
 2. **Encode Credentials**
 
@@ -34,7 +34,7 @@ A complete list of tools can be seen under [mcp.reference.langfuse.com](https://
 
    ```
    // Example. Real token will be much longer
-   cGstbGYteHh4OnNrLWxmLXh4eA==
+   e3Byb2plY3QtaWR9OnNrLWxmLXh4eA==
    ```
 
 3. **Add to Claude Code**
@@ -69,7 +69,7 @@ This design:
 
 - Eliminates session management complexity
 - Prevents state leaks between projects
-- Simplifies authentication (project context derived from API key)
+- Simplifies authentication (the connection is the API key; each tool call names its project)
 
 `server/transport.ts` serves both protocol eras through the SDK's `createMcpHandler`: 2026-07-28 requests are answered directly (JSON unless a tool streams), 2025-era requests through its stateless legacy fallback, which always responds with SSE (`text/event-stream`).
 
@@ -80,30 +80,44 @@ Resources are served by the SDK: the bundled Langfuse skills through its Skills 
 ```
 1. Client sends request with Authorization header
    ↓
-2. API endpoint validates BasicAuth (PROJECT_ID:SECRET_KEY)
+2. API endpoint authenticates the secret key (Basic PROJECT_ID:SECRET_KEY, or Bearer SECRET_KEY)
+   and rejects a public key alone, which only grants score ingestion
    ↓
-3. Verify API key has project-level scope
+3. Build the McpConnection from the API key: its authorization context and,
+   for a project key, the project it is bound to
    ↓
-4. Build ServerContext from API key metadata
+4. Create fresh MCP server with the connection in closure
    ↓
-5. Create fresh MCP server with context in closure
+5. On each tools/call: resolve the project (the `projectId` argument, else the
+   key's own project), authorize the tool's action on it, and run the handler
+   with the resolved ServerContext
    ↓
-6. Handle request (context auto-injected to handlers)
-   ↓
-7. Discard server instance
+6. Discard server instance
 ```
 
-**ServerContext:**
+The connection is authenticated only; every tool call is authorized against its project with the key's policies, whatever `API_AUTH_MIGRATION` is set to.
+
+**ServerContext** (what a project tool's handler receives):
 
 ```typescript
 {
-  projectId: "proj-123",      // Auto-injected from API key
-  orgId: "org-456",           // Auto-injected from API key
+  projectId: "proj-123",      // The project this call runs in
+  orgId: "org-456",           // The organization that owns projectId
   apiKeyId: "key-789",        // For audit logging
-  accessLevel: "project",     // Required for MCP
-  publicKey: "pk-lf-..."      // For reference
+  accessLevel: "project",
+  publicKey: "pk-lf-...",     // For reference
+  auth: { principal, policies } // The key's authorization context
 }
 ```
+
+### Multi-project access (organization keys)
+
+An organization key is not bound to a project, so it connects with its secret key alone (`Authorization: Bearer sk-lf-...`). For a key bound to no project, such as an organization key, tools/list adds a required `projectId` argument to every project tool. A project key's tools don't list it: its calls run in its own project. tools/call removes `projectId` before the tool validates its own input.
+
+- `listProjects` lists the projects the key may read (`project:read`), as id and name.
+- A project key's calls run in its own project. A project key that passes `projectId` anyway may name only that project; another project is denied.
+- An organization key's calls must name a project. A project outside the key's organization is denied: the call is authorized in the organization that owns the project, never in the key's bound organization, so the key's `project/*` policy cannot match a project elsewhere.
+- What the key may do in a project is its role's. A legacy organization key holds `project:read` but no data actions, so it can list projects and little else; give the key a role (for example Admin or Viewer) for data access.
 
 ### Tool Annotations
 
@@ -152,7 +166,7 @@ A host sends a view its tool result once. A view that starts again in the same f
 
 ## Authentication
 
-All clients require BasicAuth authentication using your project ID and a Langfuse secret key.
+Clients authenticate with a Langfuse secret key: as BasicAuth with your project ID as the username, or as `Bearer sk-lf-...`. An organization key connects with Bearer and passes `projectId` on its tool calls (see [Multi-project access](#multi-project-access-organization-keys)).
 
 ### 1. Generate Basic Auth Token
 
@@ -162,7 +176,7 @@ Encode your project ID and secret key (Project ID:Secret Key) to base64:
 echo -n "your-project-id:sk-lf-your-secret-key" | base64
 ```
 
-This outputs your BasicAuth token (e.g., `cGstbGYt...`).
+This outputs your BasicAuth token (e.g., `eW91ci1wcm9qZWN0LWlk...`).
 
 ### 2. Choose Your Langfuse URL
 

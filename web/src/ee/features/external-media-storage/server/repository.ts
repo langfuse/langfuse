@@ -10,6 +10,10 @@ const projectOrgId = {
 
 export function createExternalMediaStorageRepository(prisma: PrismaClient) {
   return {
+    findOrganizationById(orgId: string) {
+      return prisma.organization.findUnique({ where: { id: orgId } });
+    },
+
     async findOrganizationByProjectId(projectId: string) {
       const project = await prisma.project.findUnique({
         where: { id: projectId },

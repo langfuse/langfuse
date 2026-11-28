@@ -19,6 +19,7 @@ import {
 import type { ServerContext } from "@/src/features/mcp/types";
 import type { RegisteredTool } from "@/src/features/mcp/server/tools";
 import { authenticator } from "@/src/features/apiKey/authenticator";
+import { mockAuthContext } from "@/src/__tests__/server/mcp-auth-fixtures";
 
 /**
  * Creates a complete MCP test setup including:
@@ -62,6 +63,7 @@ export async function createMcpTestSetup(): Promise<{
     rateLimitOverrides: [],
     accessAuditLogEnabled: false,
     auth: authenticated.context,
+    boundProjectId: projectId,
   };
 
   return {
@@ -141,6 +143,7 @@ export async function createInAppAgentMcpContext(params: {
       rateLimitOverrides: [],
       accessAuditLogEnabled: false,
       auth: authenticated.context,
+      boundProjectId: params.projectId,
     },
   };
 }
@@ -174,6 +177,13 @@ export function mockServerContext(
     rateLimitOverrides: overrides?.rateLimitOverrides ?? [],
     accessAuditLogEnabled: overrides?.accessAuditLogEnabled ?? false,
     ...overrides,
+    auth:
+      overrides?.auth ??
+      mockAuthContext({
+        orgId: overrides?.orgId ?? "test-org-id",
+        projectId: overrides?.projectId ?? "test-project-id",
+        actions: [],
+      }),
   };
 }
 

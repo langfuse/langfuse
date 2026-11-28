@@ -253,6 +253,12 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       await repository.findOrganizationByProjectId(projectId);
     return organization ? hasExternalMediaStorageAccess(organization) : false;
   };
+  /** isOrganizationFeatureEnabled reports whether an organization's plan or the allowlist grants external media storage. */
+  const isOrganizationFeatureEnabled = async (orgId: string) => {
+    const organization = await repository.findOrganizationById(orgId);
+    if (!organization) return false;
+    return hasExternalMediaStorageAccess(organization);
+  };
   const assertFeatureEnabled = async (projectId: string) => {
     if (!(await isFeatureEnabled(projectId))) {
       throw new ForbiddenError(
@@ -278,6 +284,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
 
   return {
     isFeatureEnabled,
+    isOrganizationFeatureEnabled,
 
     /**
      * The cross-account role is only returned when the organization can use

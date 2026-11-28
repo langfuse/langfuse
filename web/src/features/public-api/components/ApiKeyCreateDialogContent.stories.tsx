@@ -71,6 +71,7 @@ export const WithoutRoleSelection = meta.story({
 });
 
 const SECRET_KEY = "sk-lf-4d164bc4-3275-43dd-8b18-150e006da4e7";
+
 const PROJECT_ID = "cm1demoproject00000000001";
 
 export const Created = meta.story({
@@ -120,9 +121,50 @@ export const CreatedOrganizationKey = meta.story({
   },
   play: async ({ canvasElement }) => {
     const body = canvasElement.ownerDocument.body;
+    const screen = within(body);
     await expect(body.textContent).toContain(
       'LANGFUSE_PUBLIC_KEY="<your-project-id>"',
     );
     await expect(body.textContent).not.toContain("pk-lf-");
+    await expect(
+      screen.getByRole("link", { name: "tracing quickstart" }),
+    ).toHaveAttribute(
+      "href",
+      "https://langfuse.com/docs/observability/get-started",
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "API" }));
+    await expect(body.textContent).toContain(
+      "langfuse-project-id: <your-project-id>",
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "MCP" }));
+    await expect(
+      screen.getByRole("tab", { name: "Claude", selected: true }),
+    ).toBeInTheDocument();
+    await expect(body.textContent).toContain("Authorization: Bearer");
+    await expect(body.textContent).not.toContain("Authorization: Basic");
+
+    await expect(body.textContent).toContain(
+      "Run in your terminal to connect Claude Code to Langfuse.",
+    );
+    await expect(body.textContent).toContain("claude mcp add langfuse");
+    await userEvent.click(screen.getByRole("tab", { name: "Codex" }));
+    await expect(body.textContent).toContain(
+      "--bearer-token-env-var LANGFUSE_MCP_TOKEN",
+    );
+    await expect(body.textContent).not.toContain(SECRET_KEY);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Cursor" }));
+    await expect(
+      screen.getByRole("button", { name: "Add to Cursor" }),
+    ).toBeInTheDocument();
+    await expect(body.textContent).toContain('"mcpServers"');
+    // The install link carries the key, so it is built on click and never rendered.
+    await expect(body.innerHTML).not.toContain("cursor-deeplink");
+    await expect(body.innerHTML).not.toContain(SECRET_KEY);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Pi" }));
+    await expect(body.textContent).toContain("pi mcp add langfuse");
   },
 });

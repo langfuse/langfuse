@@ -1,9 +1,9 @@
 /* eslint-disable @repo/no-style-props */
-import { type ReactNode } from "react";
-import { FileCode, Plug, type IconComponent } from "@langfuse/icons";
+import { type ReactNode, useState } from "react";
+import { Braces, FileCode, Plug, type IconComponent } from "@langfuse/icons";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Label } from "@/src/components/ui/label";
 import { MaskedGatewayKey } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/MaskedGatewayKey";
 import { StepCodeSection } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/StepCodeSection";
 import { GatewaySecretKeyContext } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
@@ -12,6 +12,10 @@ import {
   getLangfuseEnvCode,
   projectIdPlaceholder,
 } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import {
+  buildMcpHarnessCommands,
+  shellCommand,
+} from "@/src/features/public-api/components/mcpHarnessCommands";
 import { cn } from "@/src/utils/tailwind";
 
 /** ApiKeyDetailContentProps name the project a project key's examples use as the public key. */
@@ -26,69 +30,92 @@ type UsageTab = {
   id: string;
   label: string;
   icon: IconComponent;
-  title?: string;
   description?: ReactNode;
-  codeLabel?: string;
   /** Snippet with GATEWAY_KEY_PLACEHOLDER where `secret` goes. */
   code: string;
+  language: "sh" | "json";
   secret: string;
+  /** install opens a one-click install link for the tab's product. */
+  install?: { label: string; open: () => void };
 };
-
-/** encodeMcpCredential returns the Basic auth token for a project id and secret key. */
-function encodeMcpCredential(projectId: string, secretKey: string) {
-  const credential = `${projectId}:${secretKey}`;
-
-  if (typeof globalThis.btoa === "function") {
-    return globalThis.btoa(credential);
-  }
-
-  return Buffer.from(credential).toString("base64");
-}
 
 export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
   const { scope, secretKey, baseUrl, className, showMcpSection } = props;
   const projectId = exampleProjectId(props);
+  const [activeTab, setActiveTab] = useState<string>("sdk");
+  const [activeMcpTab, setActiveMcpTab] = useState<string>("claude-code");
 
   const tabs: UsageTab[] = [
     {
-      id: "env",
-      label: ".env",
+      id: "sdk",
+      label: "SDK",
       icon: FileCode,
-      description:
-        "Add these environment variables to your application to send traces to Langfuse.",
+      description: (
+        <>
+          Add these environment variables to your application to send traces to
+          Langfuse. For more information see the{" "}
+          <DocsLink href="https://langfuse.com/docs/observability/get-started">
+            tracing quickstart
+          </DocsLink>
+          .
+        </>
+      ),
       code: getLangfuseEnvCode(baseUrl, {
         projectId,
         secretKey: GATEWAY_KEY_PLACEHOLDER,
       }),
+      language: "sh",
+      secret: secretKey,
+    },
+    {
+      id: "api",
+      label: "API",
+      icon: Braces,
+      description: (
+        <>
+          Call the{" "}
+          <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/public-api">
+            Langfuse API
+          </DocsLink>{" "}
+          with the secret key as a bearer token.
+        </>
+      ),
+      code: shellCommand(
+        `curl -H "Authorization: Bearer ${GATEWAY_KEY_PLACEHOLDER}"`,
+        // An organization key names its project per request; a project key is bound to one.
+        ...(scope === "organization"
+          ? [`-H "langfuse-project-id: ${projectId}"`]
+          : []),
+        `${baseUrl}/api/public/projects`,
+      ),
+      language: "sh",
       secret: secretKey,
     },
   ];
-  if (showMcpSection) {
-    tabs.push({
-      id: "mcp",
-      label: "MCP",
-      icon: Plug,
-      title: "Using with MCP",
-      description: (
-        <>
-          For a detailed guide on how to use this API key to connect to the
-          Langfuse MCP server, see the{" "}
-          <a
-            href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server"
-            target="_blank"
-            rel="noreferrer"
-            className="text-foreground underline"
-          >
-            MCP setup docs
-          </a>
-          .
-        </>
-      ),
-      codeLabel: "Header",
-      code: `Authorization: Basic ${GATEWAY_KEY_PLACEHOLDER}`,
-      secret: encodeMcpCredential(projectId, secretKey),
-    });
-  }
+  const mcpTabs: UsageTab[] = showMcpSection
+    ? buildMcpHarnessCommands(`${baseUrl}/api/public/mcp`, secretKey).map(
+        (command) => ({
+          id: command.id,
+          label: command.label,
+          icon: command.icon,
+          description: command.install
+            ? `Add Langfuse to ${command.product} with one click, or add this to ${command.install.configFile}.`
+            : `Run in your terminal to connect ${command.product} to Langfuse.`,
+          code: command.code,
+          language: command.language,
+          secret: command.secret,
+          install: command.install && {
+            label: `Add to ${command.product}`,
+            // Built on click so the key-bearing link never sits in the DOM.
+            open: () => {
+              if (!command.install) return;
+              // eslint-disable-next-line @repo/no-location-navigation -- a cursor:// install link opens the Cursor app, not an in-app page
+              window.location.href = command.install.link();
+            },
+          },
+        }),
+      )
+    : [];
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
@@ -103,40 +130,97 @@ export function ApiKeyDetailContent(props: ApiKeyDetailContentProps) {
       <hr />
       <div className="flex flex-col gap-2">
         <h3 className="font-bold">Usage instructions</h3>
-        <Tabs defaultValue="env">
-          <div className="flex h-9 items-center border-b">
-            <Tabs.List variant="underline" aria-label="Usage instructions">
-              {tabs.map((tab) => (
-                <Tabs.Trigger
-                  key={tab.id}
-                  value={tab.id}
-                  label={tab.label}
-                  icon={tab.icon}
-                />
-              ))}
-            </Tabs.List>
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs.List variant="underline" aria-label="Usage instructions">
+            {tabs.map((tab) => (
+              <Tabs.Trigger
+                key={tab.id}
+                value={tab.id}
+                label={tab.label}
+                icon={tab.icon}
+              />
+            ))}
+            {mcpTabs.length > 0 ? (
+              <Tabs.Trigger value="mcp" label="MCP" icon={Plug} />
+            ) : null}
+          </Tabs.List>
           {tabs.map((tab) => (
             <Tabs.Content key={tab.id} value={tab.id}>
-              <div className="flex flex-col gap-2 pt-4">
-                {tab.title ? (
-                  <h4 className="text-sm font-bold">{tab.title}</h4>
-                ) : null}
-                {tab.description ? (
-                  <p className="text-muted-foreground text-sm">
-                    {tab.description}
-                  </p>
-                ) : null}
-                {tab.codeLabel ? <Label>{tab.codeLabel}</Label> : null}
-                <GatewaySecretKeyContext value={{ value: tab.secret }}>
-                  <StepCodeSection code={tab.code} language="sh" />
-                </GatewaySecretKeyContext>
-              </div>
+              <UsagePanel tab={tab} className="pt-4" />
             </Tabs.Content>
           ))}
+          {mcpTabs.length > 0 ? (
+            <Tabs.Content value="mcp">
+              <div className="flex flex-col gap-3 pt-4">
+                <p className="text-muted-foreground text-sm">
+                  Connect your coding agent to the Langfuse MCP server. For more
+                  information see the{" "}
+                  <DocsLink href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server">
+                    MCP setup docs
+                  </DocsLink>
+                  .
+                </p>
+                <Tabs value={activeMcpTab} onValueChange={setActiveMcpTab}>
+                  <Tabs.List variant="inset" size="sm" aria-label="MCP client">
+                    {mcpTabs.map((tab) => (
+                      <Tabs.Trigger
+                        key={tab.id}
+                        value={tab.id}
+                        label={tab.label}
+                        icon={tab.icon}
+                      />
+                    ))}
+                  </Tabs.List>
+                  {mcpTabs.map((tab) => (
+                    <Tabs.Content key={tab.id} value={tab.id}>
+                      <UsagePanel tab={tab} className="pt-3" />
+                    </Tabs.Content>
+                  ))}
+                </Tabs>
+              </div>
+            </Tabs.Content>
+          ) : null}
         </Tabs>
       </div>
     </div>
+  );
+}
+
+/** UsagePanel shows a usage tab's description, install button and snippet. */
+function UsagePanel(props: { tab: UsageTab; className?: string }) {
+  const { tab } = props;
+  return (
+    <div className={cn("flex flex-col gap-2", props.className)}>
+      {tab.description ? (
+        <p className="text-muted-foreground text-sm">{tab.description}</p>
+      ) : null}
+      {tab.install ? (
+        <div className="ph-no-capture">
+          <Button
+            text={tab.install.label}
+            variant="secondary"
+            onClick={tab.install.open}
+          />
+        </div>
+      ) : null}
+      <GatewaySecretKeyContext value={{ value: tab.secret }}>
+        <StepCodeSection code={tab.code} language={tab.language} />
+      </GatewaySecretKeyContext>
+    </div>
+  );
+}
+
+/** DocsLink opens a Langfuse docs page in a new tab. */
+function DocsLink(props: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={props.href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-foreground underline"
+    >
+      {props.children}
+    </a>
   );
 }
 
