@@ -8,7 +8,7 @@ import {
   GATEWAY_GUARDRAIL_TEMPLATES,
   type GatewayGuardrailTemplate,
   type GatewayGuardrailTemplatePreview,
-} from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+} from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import { cn } from "@/src/utils/tailwind";
 
 import styles from "./GatewayGuardrailTemplateGallery.module.css";

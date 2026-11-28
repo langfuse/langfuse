@@ -8,7 +8,10 @@ use reqwest::Url;
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::{ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome};
+use crate::guardrails::{
+    GuardrailLocation,
+    external::{ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome},
+};
 
 const MAX_BEDROCK_RESPONSE_BYTES: usize = 256 * 1024;
 const MAX_BEDROCK_ANONYMIZED_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
@@ -37,8 +40,12 @@ impl fmt::Debug for BedrockGuardrail {
 }
 
 /// Serializes `blocks` into the AWS Bedrock `ApplyGuardrail` JSON request body
-/// for the given `source` (`"INPUT"` for requests, `"OUTPUT"` for responses).
-pub(crate) fn serialize_blocks(blocks: &[&str], source: &'static str) -> Option<Bytes> {
+/// as `source: "INPUT"` for requests and `"OUTPUT"` for responses.
+pub(crate) fn serialize_blocks(blocks: &[&str], location: GuardrailLocation) -> Option<Bytes> {
+    let source = match location {
+        GuardrailLocation::Request => "INPUT",
+        GuardrailLocation::Response => "OUTPUT",
+    };
     let content = blocks
         .iter()
         .map(|text| GuardrailContentBlock {
@@ -279,7 +286,7 @@ mod tests {
     use super::*;
     use crate::guardrails::{
         Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
-        external::{ExternalBlock, ExternalFailureKind, ExternalPayloads},
+        external::{ExternalBlock, ExternalFailureKind, ExternalGuardrail, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -301,7 +308,10 @@ mod tests {
             action: GuardrailAction::Block,
             scope: GuardrailScope::LastTurn,
             redaction_label: None,
-            kind: GuardrailKind::Bedrock(sample_config(guardrail_id, "1")),
+            kind: GuardrailKind::External(ExternalGuardrail::Bedrock(sample_config(
+                guardrail_id,
+                "1",
+            ))),
         }
     }
 

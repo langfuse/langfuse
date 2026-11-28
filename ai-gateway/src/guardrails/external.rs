@@ -1,7 +1,11 @@
 //! Pooled HTTPS client and concurrent dispatcher for external guardrail
 //! providers. Timeouts and provider errors fail closed so unscreened prompts
 //! never bypass a configured guardrail.
-use std::{sync::Arc, time::Duration};
+use std::{
+    mem::{Discriminant, discriminant},
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::body::Bytes;
 use futures_util::future::join_all;
@@ -15,11 +19,14 @@ use secrecy::{ExposeSecret, SecretString};
 
 use crate::{
     guardrails::{
-        Guardrail, GuardrailKind, GuardrailLocation, bedrock, lakera, openai_moderation,
+        Guardrail, GuardrailLocation,
+        bedrock::{self, BedrockGuardrail},
+        lakera::{self, LakeraGuardrail},
+        openai_moderation::{self, OpenAiModerationGuardrail},
         text::Speaker,
     },
     providers::OutboundPolicy,
-    resolution::ResolutionError,
+    resolution::{ResolutionError, valid_token},
 };
 
 const MAX_EXTERNAL_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
@@ -150,24 +157,146 @@ impl<'a> ExternalBlock<'a> {
     }
 }
 
-/// Pre-serialized request payloads for external guardrail providers, built once
-/// per request so temporary text copies can be dropped before awaiting network I/O.
-pub(crate) struct ExternalPayloads {
-    bedrock: Option<Bytes>,
-    openai_moderation: Option<openai_moderation::ModerationPayload>,
-    lakera: Option<Bytes>,
+/// An external guardrail provider together with its resolved configuration.
+/// Adding a provider means adding a variant here and arms in this impl.
+#[derive(Clone, Debug)]
+pub(crate) enum ExternalGuardrail {
+    Bedrock(BedrockGuardrail),
+    OpenAiModeration(OpenAiModerationGuardrail),
+    Lakera(LakeraGuardrail),
 }
+
+/// Provider fields of a `/resolve` guardrail; each provider reads its own.
+pub(crate) struct ExternalFields {
+    pub guardrail_id: Option<String>,
+    pub guardrail_version: Option<String>,
+    pub region: Option<String>,
+    pub project_id: Option<String>,
+    pub api_key: Option<SecretString>,
+}
+
+impl ExternalGuardrail {
+    /// Builds the provider named by the `/resolve` `type`, `Ok(None)` for a type
+    /// this gateway does not know, or the name of a missing required field.
+    pub(crate) fn from_resolve(
+        kind: &str,
+        fields: ExternalFields,
+    ) -> Result<Option<Self>, &'static str> {
+        let ExternalFields {
+            guardrail_id,
+            guardrail_version,
+            region,
+            project_id,
+            api_key,
+        } = fields;
+        Ok(Some(match kind {
+            "bedrock" => Self::Bedrock(BedrockGuardrail {
+                guardrail_id: guardrail_id.ok_or("guardrail_id")?,
+                guardrail_version: guardrail_version.ok_or("guardrail_version")?,
+                region: region.ok_or("region")?,
+                api_key: api_key.ok_or("api_key")?,
+            }),
+            "openai_moderation" => Self::OpenAiModeration(OpenAiModerationGuardrail {
+                region: region.ok_or("region")?,
+                api_key: api_key.ok_or("api_key")?,
+            }),
+            "lakera" => Self::Lakera(LakeraGuardrail {
+                region: region.ok_or("region")?,
+                project_id,
+                api_key: api_key.ok_or("api_key")?,
+            }),
+            _ => return Ok(None),
+        }))
+    }
+
+    /// Whether `/resolve` sent a usable configuration. An unknown region of
+    /// `OpenAI` Moderation or Lakera fails only that guardrail closed at check
+    /// time, so Web can add regions before every gateway knows them.
+    pub(crate) fn is_valid(&self) -> bool {
+        match self {
+            Self::Bedrock(config) => {
+                crate::resolution::bedrock::is_aws_region(&config.region)
+                    && !config.guardrail_id.trim().is_empty()
+                    && !config.guardrail_version.trim().is_empty()
+                    && valid_token(config.api_key.expose_secret())
+            }
+            Self::OpenAiModeration(config) => valid_token(config.api_key.expose_secret()),
+            Self::Lakera(config) => {
+                config.project_id.as_deref().is_none_or(valid_token)
+                    && valid_token(config.api_key.expose_secret())
+            }
+        }
+    }
+
+    /// Serializes `blocks` the way this provider reads them.
+    fn serialize(
+        &self,
+        blocks: &[ExternalBlock<'_>],
+        texts: &[&str],
+        location: GuardrailLocation,
+    ) -> Option<Bytes> {
+        match self {
+            Self::Bedrock(_) => bedrock::serialize_blocks(texts, location),
+            Self::OpenAiModeration(_) => openai_moderation::serialize_blocks(texts),
+            Self::Lakera(_) => lakera::serialize_blocks(blocks),
+        }
+    }
+
+    async fn evaluate(
+        &self,
+        client: &ExternalGuardrailClient,
+        guardrail_id: &str,
+        payload: ExternalPayload,
+        organization_id: &str,
+    ) -> ExternalOutcome {
+        match self {
+            Self::Bedrock(config) => {
+                bedrock::evaluate_one(client, guardrail_id, config, payload.body, organization_id)
+                    .await
+            }
+            Self::OpenAiModeration(config) => {
+                openai_moderation::evaluate_one(
+                    client,
+                    guardrail_id,
+                    config,
+                    payload,
+                    organization_id,
+                )
+                .await
+            }
+            Self::Lakera(config) => {
+                lakera::evaluate_one(client, guardrail_id, config, payload.body, organization_id)
+                    .await
+            }
+        }
+    }
+}
+
+/// One provider's serialized request and the number of text blocks it carries.
+#[derive(Clone)]
+pub(crate) struct ExternalPayload {
+    pub body: Bytes,
+    pub blocks: usize,
+}
+
+/// Pre-serialized request payloads, one per provider in the batch, built once
+/// per request so temporary text copies can be dropped before awaiting network I/O.
+pub(crate) struct ExternalPayloads(Vec<(Discriminant<ExternalGuardrail>, Option<ExternalPayload>)>);
 
 impl ExternalPayloads {
     /// How many provider payloads [`Self::for_guardrails`] serializes for
     /// `guardrails`, each holding its own copy of the scoped text.
     pub(crate) fn count_for(guardrails: &[&Guardrail]) -> usize {
-        let has = |matches: fn(&GuardrailKind) -> bool| {
-            usize::from(guardrails.iter().any(|guardrail| matches(&guardrail.kind)))
-        };
-        has(|kind| matches!(kind, GuardrailKind::Bedrock(_)))
-            + has(|kind| matches!(kind, GuardrailKind::OpenAiModeration(_)))
-            + has(|kind| matches!(kind, GuardrailKind::Lakera(_)))
+        let mut providers: Vec<Discriminant<ExternalGuardrail>> = Vec::new();
+        for external in guardrails
+            .iter()
+            .filter_map(|guardrail| guardrail.kind.external())
+        {
+            if !providers.contains(&discriminant(external)) {
+                providers.push(discriminant(external));
+            }
+        }
+        providers.len()
     }
 
     pub(crate) fn for_guardrails(
@@ -176,29 +305,36 @@ impl ExternalPayloads {
         location: GuardrailLocation,
     ) -> Self {
         let texts: Vec<&str> = blocks.iter().map(|block| block.text).collect();
-        let needs_bedrock = guardrails
+        let mut payloads = Vec::new();
+        for external in guardrails
             .iter()
-            .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Bedrock(_)));
-        let bedrock = needs_bedrock
-            .then(|| bedrock::serialize_blocks(&texts, location.bedrock_source()))
-            .flatten();
-        let needs_openai_moderation = guardrails
-            .iter()
-            .any(|guardrail| matches!(guardrail.kind, GuardrailKind::OpenAiModeration(_)));
-        let openai_moderation = needs_openai_moderation
-            .then(|| openai_moderation::serialize_blocks(&texts))
-            .flatten();
-        let needs_lakera = guardrails
-            .iter()
-            .any(|guardrail| matches!(guardrail.kind, GuardrailKind::Lakera(_)));
-        let lakera = needs_lakera
-            .then(|| lakera::serialize_blocks(blocks))
-            .flatten();
-        Self {
-            bedrock,
-            openai_moderation,
-            lakera,
+            .filter_map(|guardrail| guardrail.kind.external())
+        {
+            let provider = discriminant(external);
+            if payloads
+                .iter()
+                .any(|(serialized, _)| *serialized == provider)
+            {
+                continue;
+            }
+            let payload =
+                external
+                    .serialize(blocks, &texts, location)
+                    .map(|body| ExternalPayload {
+                        body,
+                        blocks: blocks.len(),
+                    });
+            payloads.push((provider, payload));
         }
+        Self(payloads)
+    }
+
+    fn get(&self, external: &ExternalGuardrail) -> Option<ExternalPayload> {
+        let provider = discriminant(external);
+        self.0
+            .iter()
+            .find(|(serialized, _)| *serialized == provider)
+            .and_then(|(_, payload)| payload.clone())
     }
 }
 
@@ -262,54 +398,21 @@ impl ExternalGuardrailClient {
         payloads: &ExternalPayloads,
         organization_id: &str,
     ) -> ExternalOutcome {
-        match &guardrail.kind {
-            GuardrailKind::Bedrock(config) => {
-                let Some(payload) = payloads.bedrock.clone() else {
-                    tracing::warn!(
-                        guardrail_id = %guardrail.id,
-                        organization_id,
-                        reason = "serialization",
-                        "external guardrail request failed to serialize; failing closed"
-                    );
-                    return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
-                };
-                bedrock::evaluate_one(self, &guardrail.id, config, payload, organization_id).await
-            }
-            GuardrailKind::OpenAiModeration(config) => {
-                let Some(payload) = payloads.openai_moderation.clone() else {
-                    tracing::warn!(
-                        guardrail_id = %guardrail.id,
-                        organization_id,
-                        reason = "serialization",
-                        "external guardrail request failed to serialize; failing closed"
-                    );
-                    return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
-                };
-                openai_moderation::evaluate_one(
-                    self,
-                    &guardrail.id,
-                    config,
-                    payload,
-                    organization_id,
-                )
-                .await
-            }
-            GuardrailKind::Lakera(config) => {
-                let Some(payload) = payloads.lakera.clone() else {
-                    tracing::warn!(
-                        guardrail_id = %guardrail.id,
-                        organization_id,
-                        reason = "serialization",
-                        "external guardrail request failed to serialize; failing closed"
-                    );
-                    return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
-                };
-                lakera::evaluate_one(self, &guardrail.id, config, payload, organization_id).await
-            }
-            GuardrailKind::Regex { .. } | GuardrailKind::FailClosed | GuardrailKind::Unknown => {
-                ExternalOutcome::None
-            }
-        }
+        let Some(external) = guardrail.kind.external() else {
+            return ExternalOutcome::None;
+        };
+        let Some(payload) = payloads.get(external) else {
+            tracing::warn!(
+                guardrail_id = %guardrail.id,
+                organization_id,
+                reason = "serialization",
+                "external guardrail request failed to serialize; failing closed"
+            );
+            return ExternalOutcome::Failed(ExternalFailureKind::Unavailable);
+        };
+        external
+            .evaluate(self, &guardrail.id, payload, organization_id)
+            .await
     }
 
     /// POSTs a JSON body with bearer auth under the per-call timeout and returns

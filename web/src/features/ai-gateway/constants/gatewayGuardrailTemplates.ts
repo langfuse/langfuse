@@ -1,3 +1,6 @@
+import type { IconComponent } from "@langfuse/icons";
+import { AwsColorMark, LakeraMark } from "@langfuse/icons/brand";
+import { SiAmazonwebservices, SiOpenai } from "@langfuse/icons/si";
 import type {
   GatewayGuardrailAction,
   GatewayGuardrailType,
@@ -23,11 +26,19 @@ export type GatewayGuardrailTemplate = {
   /** Optional informational banner displayed inside the create/edit form for this template. */
   notice?: string;
   preview: GatewayGuardrailTemplatePreview;
+  /** Short label of the guardrails table's badge for regex templates. */
+  badge?: string;
   /** Present for external guardrail providers evaluated over HTTP by the gateway. */
   external?: {
     description: string;
     docsLabel: string;
     docsHref: string;
+    /** Second line of the empty-state option. */
+    hint: string;
+    /** Empty-state option icon. */
+    icon: IconComponent;
+    /** Guardrails table badge. */
+    badgeIcon: IconComponent;
   };
   presets: readonly GatewayGuardrailPreset[];
   defaultPresets: readonly GatewayGuardrailPreset[];
@@ -90,6 +101,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     {
       id: "pii",
       guardrailType: "REGEX",
+      badge: "PII",
       name: "PII",
       description: "Detects emails, SSNs, cards, tax IDs, phones and IBANs.",
       preview: {
@@ -105,6 +117,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     {
       id: "secrets",
       guardrailType: "REGEX",
+      badge: "***",
       name: "Secrets and API keys",
       description:
         "Detects API keys, access tokens, database URLs, JWTs and private keys.",
@@ -121,6 +134,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     {
       id: "prompt_injection",
       guardrailType: "REGEX",
+      badge: "INJ",
       defaultAction: "LOG",
       name: "Prompt injection (heuristic)",
       description:
@@ -144,6 +158,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     {
       id: "contains",
       guardrailType: "REGEX",
+      badge: "Aa",
       name: "Keyword list",
       description: "Detects words and phrases you define, like codenames.",
       preview: {
@@ -159,6 +174,7 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
     {
       id: "custom_regex",
       guardrailType: "REGEX",
+      badge: ".*",
       name: "Custom regex",
       description: "Match your own regular expression.",
       preview: {
@@ -185,6 +201,9 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
         docsLabel: "AWS documentation",
         docsHref:
           "https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html",
+        hint: "Guardrail ID & key",
+        icon: AwsColorMark,
+        badgeIcon: SiAmazonwebservices,
       },
       presets: [],
       defaultPresets: [],
@@ -205,6 +224,9 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
           "Checks each request's latest turn with the free OpenAI Moderation API. It scans text only and cannot redact.",
         docsLabel: "OpenAI documentation",
         docsHref: "https://platform.openai.com/docs/guides/moderation",
+        hint: "Harmful content & key",
+        icon: SiOpenai,
+        badgeIcon: SiOpenai,
       },
       presets: [],
       defaultPresets: [],
@@ -225,6 +247,9 @@ export const GATEWAY_GUARDRAIL_TEMPLATES: readonly GatewayGuardrailTemplate[] =
           "Screens each request's latest turn with your Lakera Guard project policy and blocks or logs flagged content.",
         docsLabel: "Lakera documentation",
         docsHref: "https://docs.lakera.ai/docs/api/guard",
+        hint: "Prompt attacks & key",
+        icon: LakeraMark,
+        badgeIcon: LakeraMark,
       },
       presets: [],
       defaultPresets: [],

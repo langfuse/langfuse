@@ -1,4 +1,6 @@
 use super::*;
+use bedrock::BedrockGuardrail;
+use lakera::LakeraGuardrail;
 
 const TEST_MAX_SCAN_BYTES: usize = crate::config::DEFAULT_GUARDRAIL_MAX_SCAN_BYTES;
 
@@ -68,12 +70,12 @@ fn bedrock_enforce_guardrail(id: &str) -> Guardrail {
         action: GuardrailAction::Enforce,
         scope: GuardrailScope::LastTurn,
         redaction_label: None,
-        kind: GuardrailKind::Bedrock(BedrockGuardrail {
+        kind: GuardrailKind::External(ExternalGuardrail::Bedrock(BedrockGuardrail {
             guardrail_id: "abc123def".into(),
             guardrail_version: "1".into(),
             region: "us-east-1".into(),
             api_key: SecretString::from("token"),
-        }),
+        })),
     }
 }
 
@@ -453,11 +455,11 @@ fn external_blocks_keep_the_chat_role_of_their_text() {
         action: GuardrailAction::Log,
         scope,
         redaction_label: None,
-        kind: GuardrailKind::Lakera(LakeraGuardrail {
+        kind: GuardrailKind::External(ExternalGuardrail::Lakera(LakeraGuardrail {
             region: "eu".into(),
             project_id: None,
             api_key: SecretString::from("lakera-key"),
-        }),
+        })),
     };
 
     // On the first turn Anthropic's top-level system prompt is part of the last turn.

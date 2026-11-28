@@ -6,10 +6,9 @@ import {
   TextSearch,
   type IconComponent,
 } from "@langfuse/icons";
-import { AwsColorMark, LakeraMark } from "@langfuse/icons/brand";
-import { SiOpenai } from "@langfuse/icons/si";
 
 import type { GatewayGuardrailTemplateKind } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/GatewayGuardrailDialogController";
+import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 
 export type GuardrailTemplateOption = {
   id: GatewayGuardrailTemplateKind;
@@ -18,7 +17,7 @@ export type GuardrailTemplateOption = {
   icon: IconComponent;
 };
 
-/** Display order and distinct icons for the empty-state guardrail options. */
+/** Display order and distinct icons for the empty-state guardrail options; integrations follow the built-in ones. */
 export const GUARDRAIL_TEMPLATE_OPTIONS: readonly GuardrailTemplateOption[] = [
   {
     id: "pii",
@@ -50,22 +49,9 @@ export const GUARDRAIL_TEMPLATE_OPTIONS: readonly GuardrailTemplateOption[] = [
     hint: "Words and phrases",
     icon: TextSearch,
   },
-  {
-    id: "bedrock",
-    title: "Amazon Bedrock",
-    hint: "Guardrail ID & key",
-    icon: AwsColorMark,
-  },
-  {
-    id: "openai_moderation",
-    title: "OpenAI Moderation",
-    hint: "Harmful content & key",
-    icon: SiOpenai,
-  },
-  {
-    id: "lakera",
-    title: "Lakera Guard",
-    hint: "Prompt attacks & key",
-    icon: LakeraMark,
-  },
+  ...GATEWAY_GUARDRAIL_TEMPLATES.flatMap(({ id, name, external }) =>
+    external
+      ? [{ id, title: name, hint: external.hint, icon: external.icon }]
+      : [],
+  ),
 ];

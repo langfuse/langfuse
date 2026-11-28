@@ -17,7 +17,7 @@ import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/
 import { resolveGatewayJwtKeys } from "@/src/features/ai-gateway/server/auth/gatewayJwtKeys";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
-import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
+import { decodeCachedExternalCredential } from "@/src/features/ai-gateway/server/guardrails/externalGuardrailProviders";
 import {
   type GatewayApiFormat,
   type GatewayCachedGuardrails,
@@ -327,40 +327,14 @@ function decryptResolvedGuardrail(
     return wire;
   }
   try {
-    if (guardrail.type === "openai_moderation") {
-      return {
-        id: guardrail.id,
-        name: guardrail.name,
-        type: "openai_moderation" as const,
-        action: guardrail.action,
-        patterns: [] as [],
-        region: guardrail.region,
-        api_key: decrypt(guardrail.encrypted_credential),
-      };
-    }
-    if (guardrail.type === "lakera") {
-      return {
-        id: guardrail.id,
-        name: guardrail.name,
-        type: "lakera" as const,
-        action: guardrail.action,
-        patterns: [] as [],
-        region: guardrail.region,
-        ...(guardrail.project_id ? { project_id: guardrail.project_id } : {}),
-        api_key: decrypt(guardrail.encrypted_credential),
-      };
-    }
-    const apiKey = decodeBedrockApiKey(decrypt(guardrail.encrypted_credential));
+    const { scope: _, encrypted_credential, ...fields } = guardrail;
     return {
-      id: guardrail.id,
-      name: guardrail.name,
-      type: "bedrock" as const,
-      action: guardrail.action,
+      ...fields,
       patterns: [] as [],
-      guardrail_id: guardrail.guardrail_id,
-      guardrail_version: guardrail.guardrail_version,
-      region: guardrail.region,
-      api_key: apiKey,
+      api_key: decodeCachedExternalCredential(
+        guardrail.type,
+        decrypt(encrypted_credential),
+      ),
     };
   } catch (error) {
     logger.error(

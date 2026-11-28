@@ -6,7 +6,6 @@ import {
   Trash2,
   User,
 } from "@langfuse/icons";
-import { LakeraMark } from "@langfuse/icons/brand";
 
 import { TableCard } from "@/src/components/TableCard/TableCard";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -25,12 +24,12 @@ import {
   GATEWAY_GUARDRAIL_SCOPE_DESCRIPTIONS,
   GATEWAY_GUARDRAIL_SCOPE_LABELS,
 } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import {
   buildGatewayTracesHref,
   type GatewayTracesTarget,
 } from "@/src/features/ai-gateway/fns/gatewayUrls/buildGatewayTracesHref";
-import { GATEWAY_GUARDRAIL_PRESETS } from "@/src/features/ai-gateway/types/gatewayGuardrail";
+import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
+import { resolveGuardrailTemplate } from "@/src/features/ai-gateway/fns/resolveGuardrailTemplate";
 import type { GatewayGuardrailRow } from "@/src/features/ai-gateway/types/gatewayGuardrailRow";
 import { numberFormatter } from "@/src/utils/numbers";
 import { assertUnreachable } from "@/src/utils/types";
@@ -253,42 +252,12 @@ function createFlaggedColumn({
 }
 
 function getGuardrailBadge(row: GatewayGuardrailRow) {
-  if (row.type === "BEDROCK") {
-    return <providerIcons.BEDROCK size="sm" aria-hidden />;
+  const { templateKind } = resolveGuardrailTemplate(row);
+  const template = GATEWAY_GUARDRAIL_TEMPLATES.find(
+    (candidate) => candidate.id === templateKind,
+  );
+  if (template?.external) {
+    return <template.external.badgeIcon size="sm" aria-hidden />;
   }
-  if (row.type === "OPENAI_MODERATION") {
-    return <providerIcons.OPENAI size="sm" aria-hidden />;
-  }
-  if (row.type === "LAKERA") {
-    return <LakeraMark size="sm" aria-hidden />;
-  }
-  if (
-    row.presets.length === 0 &&
-    row.secretPrefixes.length === 0 &&
-    row.containsWords.length === 0 &&
-    row.customRegex
-  ) {
-    return ".*";
-  }
-  if (
-    row.presets.length === 0 &&
-    row.secretPrefixes.length === 0 &&
-    row.containsWords.length > 0
-  ) {
-    return "Aa";
-  }
-  const isSecrets =
-    row.secretPrefixes.length > 0 ||
-    (row.presets.length > 0 &&
-      row.presets.every(
-        (preset) => GATEWAY_GUARDRAIL_PRESETS[preset].group === "secrets",
-      ));
-  if (isSecrets) return "***";
-  const isPromptInjection =
-    row.presets.length > 0 &&
-    row.presets.every(
-      (preset) =>
-        GATEWAY_GUARDRAIL_PRESETS[preset].group === "prompt_injection",
-    );
-  return isPromptInjection ? "INJ" : "PII";
+  return template?.badge;
 }

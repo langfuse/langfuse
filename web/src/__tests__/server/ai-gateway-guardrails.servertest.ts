@@ -373,7 +373,8 @@ describe("aiGateway guardrails tRPC", () => {
         name: "Moderation entire input",
         action: "BLOCK",
         scope: "ENTIRE_INPUT",
-        openAiModeration: { region: "us", apiKey: "sk-test-key" },
+        config: { region: "us" },
+        apiKey: "sk-test-key",
         assignments: [{ scope: "ORGANIZATION" }],
       }),
     ).rejects.toMatchObject({
@@ -390,7 +391,8 @@ describe("aiGateway guardrails tRPC", () => {
         name: "Lakera entire input",
         action: "BLOCK",
         scope: "ENTIRE_INPUT",
-        lakera: { region: "eu", apiKey: "lakera-test-key" },
+        config: { region: "eu" },
+        apiKey: "lakera-test-key",
         assignments: [{ scope: "ORGANIZATION" }],
       }),
     ).rejects.toMatchObject({
@@ -808,12 +810,12 @@ describe("aiGateway guardrails tRPC", () => {
         type: "BEDROCK",
         name: "Bad ID",
         action: "ENFORCE",
-        bedrock: {
+        config: {
           guardrailId: "../evil",
           guardrailVersion: "1",
           region: "us-east-1",
-          apiKey: "bedrock-secret-1",
         },
+        apiKey: "bedrock-secret-1",
         assignments: [{ scope: "ORGANIZATION" }],
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -829,12 +831,12 @@ describe("aiGateway guardrails tRPC", () => {
     const failedTest = await ownerCaller.aiGateway.guardrails.test({
       orgId,
       type: "BEDROCK",
-      bedrock: {
+      config: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
         region: "us-east-1",
-        apiKey: "bad-key",
       },
+      apiKey: "bad-key",
     });
     expect(failedTest).toEqual({
       success: false,
@@ -857,12 +859,12 @@ describe("aiGateway guardrails tRPC", () => {
         type: "BEDROCK",
         name: "Missing guardrail",
         action: "ENFORCE",
-        bedrock: {
+        config: {
           guardrailId: "abc123def456",
           guardrailVersion: "1",
           region: "us-east-1",
-          apiKey: "bedrock-secret-1",
         },
+        apiKey: "bedrock-secret-1",
         assignments: [{ scope: "ORGANIZATION" }],
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -871,12 +873,12 @@ describe("aiGateway guardrails tRPC", () => {
     const passedTest = await ownerCaller.aiGateway.guardrails.test({
       orgId,
       type: "BEDROCK",
-      bedrock: {
+      config: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
         region: "us-east-1",
-        apiKey: "bedrock-secret-1",
       },
+      apiKey: "bedrock-secret-1",
     });
     expect(passedTest).toEqual({ success: true });
     expect(fetchSpy).toHaveBeenLastCalledWith(
@@ -894,18 +896,18 @@ describe("aiGateway guardrails tRPC", () => {
       type: "BEDROCK",
       name: "Bedrock content filter",
       action: "ENFORCE",
-      bedrock: {
+      config: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
         region: "us-east-1",
-        apiKey: "bedrock-secret-1",
       },
+      apiKey: "bedrock-secret-1",
       assignments: [{ scope: "ORGANIZATION" }],
     });
     expect(created.type).toBe("BEDROCK");
     expect(created.action).toBe("ENFORCE");
     expect(created.redactionLabel).toBeNull();
-    expect(created.bedrock).toEqual({
+    expect(created.externalConfig).toEqual({
       guardrailId: "abc123def456",
       guardrailVersion: "1",
       region: "us-east-1",
@@ -959,7 +961,7 @@ describe("aiGateway guardrails tRPC", () => {
       orgId,
       id: created.id,
       type: "BEDROCK",
-      bedrock: {
+      config: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
         region: "us-east-1",
@@ -983,7 +985,7 @@ describe("aiGateway guardrails tRPC", () => {
       type: "BEDROCK",
       name: "Bedrock content filter renamed",
       action: "LOG",
-      bedrock: {
+      config: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
         region: "us-east-1",
@@ -999,7 +1001,7 @@ describe("aiGateway guardrails tRPC", () => {
       type: "BEDROCK",
       name: "Bedrock content filter v2",
       action: "LOG",
-      bedrock: {
+      config: {
         guardrailId:
           "arn:aws:bedrock:eu-central-1:123456789012:guardrail/abc123def456",
         guardrailVersion: "DRAFT",
@@ -1007,7 +1009,7 @@ describe("aiGateway guardrails tRPC", () => {
       },
       assignments: [{ scope: "ORGANIZATION" }],
     });
-    expect(updatedWithoutKey.bedrock).toEqual({
+    expect(updatedWithoutKey.externalConfig).toEqual({
       guardrailId:
         "arn:aws:bedrock:eu-central-1:123456789012:guardrail/abc123def456",
       guardrailVersion: "DRAFT",
@@ -1026,12 +1028,12 @@ describe("aiGateway guardrails tRPC", () => {
       type: "BEDROCK",
       name: "Bedrock content filter v2",
       action: "LOG",
-      bedrock: {
+      config: {
         guardrailId: "abc123def456",
         guardrailVersion: "2",
         region: "eu-central-1",
-        apiKey: "bedrock-secret-2",
       },
+      apiKey: "bedrock-secret-2",
       assignments: [{ scope: "ORGANIZATION" }],
     });
     const afterRotate = await prisma.gatewayGuardrail.findUniqueOrThrow({
@@ -1131,12 +1133,12 @@ describe("aiGateway guardrails tRPC", () => {
       type: "BEDROCK",
       name: "Bedrock enforce",
       action: "ENFORCE",
-      bedrock: {
+      config: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
         region: "us-east-1",
-        apiKey: "bedrock-secret-enforce",
       },
+      apiKey: "bedrock-secret-enforce",
       assignments: [{ scope: "API_KEY", apiKeyId: keyId }],
     });
     expect(bedrockEnforce.action).toBe("ENFORCE");
@@ -1434,12 +1436,12 @@ describe("aiGateway guardrails tRPC", () => {
       type: "BEDROCK",
       name: "Org bedrock rule",
       action: "ENFORCE",
-      bedrock: {
+      config: {
         guardrailId: "abc123def456",
         guardrailVersion: "1",
         region: "us-east-1",
-        apiKey: "victim-bedrock-secret",
       },
+      apiKey: "victim-bedrock-secret",
       assignments: [{ scope: "ORGANIZATION" }],
     });
 
@@ -1481,7 +1483,7 @@ describe("aiGateway guardrails tRPC", () => {
           orgId,
           id: bedrockGuardrail.id,
           type: "BEDROCK",
-          bedrock: {
+          config: {
             guardrailId: "abc123def456",
             guardrailVersion: "1",
             region: "us-east-1",
@@ -1538,7 +1540,7 @@ describe("aiGateway guardrails tRPC", () => {
           orgId,
           id: bedrockGuardrail.id,
           type: "BEDROCK",
-          bedrock: {
+          config: {
             guardrailId: "abc123def456",
             guardrailVersion: "1",
             region: "us-east-1",
@@ -1579,7 +1581,7 @@ describe("aiGateway guardrails tRPC", () => {
         type: "BEDROCK",
         name: "Cross-org bedrock edit",
         action: "LOG",
-        bedrock: {
+        config: {
           guardrailId: "abc123def456",
           guardrailVersion: "2",
           region: "us-east-1",
@@ -1593,7 +1595,7 @@ describe("aiGateway guardrails tRPC", () => {
         orgId: otherOrgId,
         id: bedrockGuardrail.id,
         type: "BEDROCK",
-        bedrock: {
+        config: {
           guardrailId: "abc123def456",
           guardrailVersion: "1",
           region: "us-east-1",

@@ -9,7 +9,9 @@ use reqwest::Url;
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 
-use crate::guardrails::external::{ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome};
+use crate::guardrails::external::{
+    ExternalCallFailure, ExternalGuardrailClient, ExternalOutcome, ExternalPayload,
+};
 
 const MODERATION_MODEL: &str = "omni-moderation-latest";
 const MODERATION_PATH: &str = "/v1/moderations";
@@ -35,32 +37,21 @@ impl fmt::Debug for OpenAiModerationGuardrail {
     }
 }
 
-/// A serialized moderation request and the number of inputs it carries, so
-/// the response must classify every input.
-#[derive(Clone)]
-pub(crate) struct ModerationPayload {
-    body: Bytes,
-    inputs: usize,
-}
-
 /// Serializes `blocks` into one moderation request with one input per block.
-pub(crate) fn serialize_blocks(blocks: &[&str]) -> Option<ModerationPayload> {
-    let body = serde_json::to_vec(&ModerationRequest {
+pub(crate) fn serialize_blocks(blocks: &[&str]) -> Option<Bytes> {
+    serde_json::to_vec(&ModerationRequest {
         model: MODERATION_MODEL,
         input: blocks,
     })
-    .ok()?;
-    Some(ModerationPayload {
-        body: Bytes::from(body),
-        inputs: blocks.len(),
-    })
+    .ok()
+    .map(Bytes::from)
 }
 
 pub(crate) async fn evaluate_one(
     client: &ExternalGuardrailClient,
     langfuse_guardrail_id: &str,
     config: &OpenAiModerationGuardrail,
-    payload: ModerationPayload,
+    payload: ExternalPayload,
     organization_id: &str,
 ) -> ExternalOutcome {
     match moderate(client, config, payload).await {
@@ -77,7 +68,7 @@ pub(crate) async fn evaluate_one(
 async fn moderate(
     client: &ExternalGuardrailClient,
     config: &OpenAiModerationGuardrail,
-    payload: ModerationPayload,
+    payload: ExternalPayload,
 ) -> Result<ExternalOutcome, ExternalCallFailure> {
     let origin = moderation_origin(&config.region);
     #[cfg(test)]
@@ -86,7 +77,7 @@ async fn moderate(
         .and_then(|origin| Url::parse(&format!("{origin}{MODERATION_PATH}")).ok())
         .ok_or(ExternalCallFailure::InvalidUrl)?;
     let response_limit = MIN_RESPONSE_BYTES
-        .max(payload.inputs.saturating_mul(MAX_RESULT_BYTES))
+        .max(payload.blocks.saturating_mul(MAX_RESULT_BYTES))
         .min(MAX_RESPONSE_BYTES);
     let content_length = payload.body.len();
     let body = client
@@ -101,7 +92,7 @@ async fn moderate(
     let parsed: ModerationResponse =
         serde_json::from_slice(&body).map_err(|_| ExternalCallFailure::InvalidResponse)?;
     // A short result list would leave some inputs unscreened.
-    if parsed.results.len() != payload.inputs {
+    if parsed.results.len() != payload.blocks {
         return Err(ExternalCallFailure::InvalidResponse);
     }
     if parsed.results.iter().any(|result| result.flagged) {
@@ -142,7 +133,7 @@ mod tests {
     use super::*;
     use crate::guardrails::{
         Guardrail, GuardrailAction, GuardrailKind, GuardrailLocation, GuardrailScope,
-        external::{ExternalBlock, ExternalFailureKind, ExternalPayloads},
+        external::{ExternalBlock, ExternalFailureKind, ExternalGuardrail, ExternalPayloads},
     };
     use axum::{body::Body, http::Response};
     use http_body_util::BodyExt;
@@ -163,7 +154,9 @@ mod tests {
     #[tokio::test]
     async fn unknown_region_resolves_and_fails_only_its_guardrail_closed() {
         let mut guardrail = sample_guardrail("g1", "clean");
-        let GuardrailKind::OpenAiModeration(config) = &mut guardrail.kind else {
+        let GuardrailKind::External(ExternalGuardrail::OpenAiModeration(config)) =
+            &mut guardrail.kind
+        else {
             unreachable!()
         };
         config.region = "jp".into();
@@ -192,7 +185,9 @@ mod tests {
             action: GuardrailAction::Block,
             scope: GuardrailScope::LastTurn,
             redaction_label: None,
-            kind: GuardrailKind::OpenAiModeration(sample_config(api_key)),
+            kind: GuardrailKind::External(ExternalGuardrail::OpenAiModeration(sample_config(
+                api_key,
+            ))),
         }
     }
 

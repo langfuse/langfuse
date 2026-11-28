@@ -7,7 +7,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import type { AsyncAutocompleteOption } from "@/src/components/AsyncAutocompleteInput/AsyncAutocompleteInput";
 import { GATEWAY_GUARDRAIL_LIMIT_ERROR_MESSAGE } from "@/src/features/ai-gateway/constants/gatewayGuardrails";
-import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/gatewayGuardrailTemplates";
+import { GATEWAY_GUARDRAIL_TEMPLATES } from "@/src/features/ai-gateway/constants/gatewayGuardrailTemplates";
 import { EVERYONE_TARGET_OPTION } from "@/src/features/ai-gateway/components/GatewayGuardrailDialogController/constants/guardrailTargetConstants";
 import {
   GatewayGuardrailFormDialog,
@@ -276,10 +276,13 @@ export const EditBedrock = meta.story({
       presets: [],
       secretPrefixes: [],
       containsWords: [],
-      bedrock: {
-        guardrailId: "abc123def456",
-        guardrailVersion: "1",
-        region: "us-east-1",
+      external: {
+        type: "BEDROCK",
+        config: {
+          guardrailId: "abc123def456",
+          guardrailVersion: "1",
+          region: "us-east-1",
+        },
       },
       action: "ENFORCE",
       scope: "LAST_TURN_AND_OUTPUT",
