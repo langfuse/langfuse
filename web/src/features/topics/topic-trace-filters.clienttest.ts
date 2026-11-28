@@ -12,13 +12,28 @@ import {
   filterTopicTraces,
   topicTraceQuery,
   getTopicAssignment,
-  selectTopicTraceFilters,
+  pickedTopicFilters,
+  pickedTopicId,
+  topicFilterLabels,
 } from "./topic-trace-filters";
+import { UNASSIGNED_TOPIC_ID } from "./prepare-topic-display";
 
 const topics = [
   { id: "billing", name: "Billing questions" },
   { id: "support", name: "Support" },
 ];
+const facet = { name: "Intent", topics };
+const topicFilter = (
+  operator: "any of" | "none of",
+  value: string[],
+  key = "Intent",
+): FilterState[number] => ({
+  column: "topics",
+  type: "categoryOptions",
+  key,
+  operator,
+  value,
+});
 const rows = [
   {
     traceId: "trace-one",
@@ -63,69 +78,98 @@ const rows = [
     outcome: "awaiting_map",
   },
 ];
-const ids = (result: typeof rows) => result.map((row) => row.traceId);
+const ids = (result: readonly { traceId: string }[]) =>
+  result.map((row) => row.traceId);
 
 describe("topic trace filtering", () => {
-  it("turns map and card selections into canonical filters", () => {
-    const activeFilters: FilterState = [
-      {
-        column: "topicId",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["support", "billing"],
-      },
+  it("turns map and card selections into canonical filters and back", () => {
+    const billing = pickedTopicFilters(facet, "billing");
+    expect(billing).toEqual([topicFilter("any of", ["Billing questions"])]);
+    expect(pickedTopicId(billing, facet)).toBe("billing");
+    expect(pickedTopicId(billing, facet, "invoice")).toBeNull();
+    expect(
+      pickedTopicId([topicFilter("none of", ["Billing questions"])], facet),
+    ).toBeNull();
+    expect(
+      pickedTopicId([topicFilter("any of", ["Missing"])], facet),
+    ).toBeNull();
+    expect(
+      pickedTopicId(
+        [topicFilter("any of", ["Billing questions"], "Sentiment")],
+        facet,
+      ),
+    ).toBeNull();
+    const unassigned = pickedTopicFilters(facet, null);
+    expect(unassigned).toEqual([
       {
         column: "assignment",
         type: "stringOptions",
         operator: "none of",
-        value: ["outlier"],
-      },
-    ];
-    expect(selectTopicTraceFilters(activeFilters, null)).toEqual(activeFilters);
-    expect(selectTopicTraceFilters(activeFilters, "outliers")).toEqual([
-      {
-        column: "assignment",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["outlier"],
+        value: ["assigned"],
       },
     ]);
-    const billing: FilterState = [
-      {
-        column: "topicId",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["billing"],
-      },
-    ];
-    expect(selectTopicTraceFilters(activeFilters, "billing")).toEqual(billing);
-    expect(selectTopicTraceFilters(billing, "billing")).toEqual([]);
+    expect(pickedTopicId(unassigned, facet)).toBe(UNASSIGNED_TOPIC_ID);
+  });
+
+  it("disambiguates duplicate topic names by stable ID while keeping bare-name queries working", () => {
+    const duplicateFacet = {
+      name: "Intent",
+      topics: [
+        { id: "one", name: "Support" },
+        { id: "two", name: "Support" },
+        { id: "three", name: "Support (one)" },
+      ],
+    };
+    expect(topicFilterLabels(duplicateFacet.topics)).toEqual([
+      "Support (one) (one)",
+      "Support (two)",
+      "Support (one)",
+    ]);
+    const picked = pickedTopicFilters(duplicateFacet, "one");
+    expect(picked).toEqual([topicFilter("any of", ["Support (one) (one)"])]);
+    expect(pickedTopicId(picked, duplicateFacet)).toBe("one");
+    expect(topicTraceQuery(picked, null, duplicateFacet)).toEqual({
+      topicIds: { operator: "any of", values: ["one"] },
+    });
     expect(
-      selectTopicTraceFilters([...billing, activeFilters[1]!], "billing"),
-    ).toEqual(billing);
-    expect(
-      selectTopicTraceFilters(
-        [
-          {
-            column: "topicId",
-            type: "stringOptions",
-            operator: "none of",
-            value: ["billing"],
-          },
-        ],
-        "billing",
+      ids(
+        filterTopicTraces(
+          [
+            {
+              traceId: "t1",
+              summary: null,
+              topicId: "one",
+              topicName: "Support",
+              outcome: "assigned",
+            },
+            {
+              traceId: "t2",
+              summary: null,
+              topicId: "two",
+              topicName: "Support",
+              outcome: "assigned",
+            },
+          ],
+          picked,
+          null,
+          duplicateFacet,
+        ),
       ),
-    ).toEqual(billing);
+    ).toEqual(["t1"]);
+    expect(
+      topicTraceQuery(
+        [topicFilter("any of", ["Support"])],
+        null,
+        duplicateFacet,
+      ),
+    ).toEqual({
+      topicIds: { operator: "any of", values: ["one", "two"] },
+    });
   });
 
   it("combines fields with AND and values within a field with OR", () => {
     const filters: FilterState = [
-      {
-        column: "topicId",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["billing", "support"],
-      },
+      topicFilter("any of", ["Billing questions", "Support"]),
       {
         column: "assignment",
         type: "stringOptions",
@@ -133,11 +177,11 @@ describe("topic trace filtering", () => {
         value: ["assigned"],
       },
     ];
-    expect(ids(filterTopicTraces(rows, filters, null))).toEqual([
+    expect(ids(filterTopicTraces(rows, filters, null, facet))).toEqual([
       "trace-one",
       "trace-two",
     ]);
-    expect(ids(filterTopicTraces(rows, filters, "trace-one"))).toEqual([
+    expect(ids(filterTopicTraces(rows, filters, "trace-one", facet))).toEqual([
       "trace-one",
     ]);
   });
@@ -147,15 +191,9 @@ describe("topic trace filtering", () => {
       ids(
         filterTopicTraces(
           rows,
-          [
-            {
-              column: "topicId",
-              type: "stringOptions",
-              operator: "none of",
-              value: ["billing", "support"],
-            },
-          ],
+          [topicFilter("none of", ["Billing questions", "Support"])],
           null,
+          facet,
         ),
       ),
     ).toEqual(["trace-three", "trace-four", "trace-five", "trace-six"]);
@@ -177,27 +215,24 @@ describe("topic trace filtering", () => {
             },
           ],
           null,
+          facet,
         ),
       ),
     ).toEqual(["trace-four", "trace-five", "trace-six"]);
   });
 
   it("searches topic names case-insensitively and trace IDs exactly, like the server", () => {
-    expect(ids(filterTopicTraces(rows, [], "BILLING QUESTIONS"))).toEqual([
-      "trace-one",
-    ]);
-    expect(ids(filterTopicTraces(rows, [], "trace-four"))).toEqual([
+    expect(
+      ids(filterTopicTraces(rows, [], "BILLING QUESTIONS", facet)),
+    ).toEqual(["trace-one"]);
+    expect(ids(filterTopicTraces(rows, [], "trace-four", facet))).toEqual([
       "trace-four",
     ]);
-    expect(filterTopicTraces(rows, [], "TRACE-FOUR")).toEqual([]);
-    expect(filterTopicTraces(rows, [], "refund policy")).toEqual([]);
+    expect(filterTopicTraces(rows, [], "TRACE-FOUR", facet)).toEqual([]);
+    expect(filterTopicTraces(rows, [], "refund policy", facet)).toEqual([]);
   });
 
   it("turns filters and search into the server query, or null when nothing can match", () => {
-    const topics = [
-      { id: "billing", name: "Billing questions" },
-      { id: "support", name: "Support" },
-    ];
     const assignment = (operator: "any of" | "none of", value: string[]) => ({
       column: "assignment",
       type: "stringOptions" as const,
@@ -207,16 +242,11 @@ describe("topic trace filtering", () => {
     expect(
       topicTraceQuery(
         [
-          {
-            column: "topicId",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["billing", "support"],
-          },
+          topicFilter("any of", ["Billing questions", "Support"]),
           assignment("any of", ["no_topic"]),
         ],
         "billing",
-        topics,
+        facet,
       ),
     ).toEqual({
       topicIds: { operator: "any of", values: ["billing"] },
@@ -231,8 +261,11 @@ describe("topic trace filtering", () => {
       },
     });
     expect(
-      topicTraceQuery([], "trace-1", topics, { assignedOnly: true }),
+      topicTraceQuery([], "trace-1", facet, { assignedOnly: true }),
     ).toEqual({ assigned: true, traceId: "trace-1" });
+    expect(
+      topicTraceQuery([topicFilter("any of", ["Unknown"])], null, facet),
+    ).toBeNull();
     expect(
       topicTraceQuery(
         [
@@ -240,62 +273,43 @@ describe("topic trace filtering", () => {
           assignment("none of", ["assigned"]),
         ],
         null,
-        topics,
+        facet,
       ),
     ).toBeNull();
   });
 
   it("handles empty results, cleared filters and empty positive selections", () => {
-    expect(filterTopicTraces([], [], null)).toEqual([]);
-    expect(filterTopicTraces(rows, [], " ")).toEqual(rows);
+    expect(filterTopicTraces([], [], null, facet)).toEqual([]);
+    expect(filterTopicTraces(rows, [], " ", facet)).toEqual(rows);
     expect(
-      filterTopicTraces(
-        rows,
-        [
-          {
-            column: "topicId",
-            type: "stringOptions",
-            operator: "any of",
-            value: [],
-          },
-        ],
-        null,
-      ),
+      filterTopicTraces(rows, [topicFilter("any of", [])], null, facet),
     ).toEqual([]);
     expect(
       filterTopicTraces(
         rows,
-        [
-          {
-            column: "topicId",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["missing"],
-          },
-        ],
+        [topicFilter("any of", ["missing"])],
         null,
+        facet,
       ),
     ).toEqual([]);
   });
 });
 
 describe("topic search registry", () => {
-  const registry = createTopicTraceRegistry(topics);
+  const registry = createTopicTraceRegistry("Intent");
 
-  it("round-trips readable labels to stable IDs", () => {
+  it("round-trips topics.<facet> filters and assignment labels", () => {
     const parsed = astToFilterState(
-      parse('topic:"Billing questions" assignment:"In a topic"', registry).ast,
+      parse(
+        'topics.Intent:"Billing questions" assignment:"In a topic"',
+        registry,
+      ).ast,
       undefined,
       registry,
     );
     expect(parsed.errors).toEqual([]);
     expect(parsed.filters).toEqual([
-      {
-        column: "topicId",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["billing"],
-      },
+      topicFilter("any of", ["Billing questions"]),
       {
         column: "assignment",
         type: "stringOptions",
@@ -305,16 +319,7 @@ describe("topic search registry", () => {
     ]);
     const roundTrip = filterStateToQueryText(parsed.filters, {}, registry);
     expect(roundTrip.skippedFilters).toEqual([]);
-    expect(roundTrip.text).toContain('topic:"Billing questions"');
-    expect(roundTrip.text).not.toContain("topicId:");
-    expect(
-      astToFilterState(
-        parse('topicId:"Billing questions" assignment:"In a topic"', registry)
-          .ast,
-        undefined,
-        registry,
-      ).filters,
-    ).toEqual(parsed.filters);
+    expect(roundTrip.text).toContain('topics.Intent:"Billing questions"');
     expect(
       astToFilterState(parse(roundTrip.text, registry).ast, undefined, registry)
         .filters,
@@ -322,7 +327,7 @@ describe("topic search registry", () => {
   });
 
   it("keeps status: on the assignment state when trace fields are added", () => {
-    const traceRegistry = createTopicTraceRegistry(topics, [], {
+    const traceRegistry = createTopicTraceRegistry("Intent", {
       traceFields: true,
     });
     expect(
@@ -341,77 +346,36 @@ describe("topic search registry", () => {
     ]);
   });
 
-  it("keeps duplicate topic labels distinct", () => {
-    const duplicateRegistry = createTopicTraceRegistry([
-      { id: "one", name: "Support" },
-      { id: "two", name: "Support" },
-    ]);
+  it("keeps saved topic selections editable even when options disappear", () => {
     const filters: FilterState = [
-      {
-        column: "topicId",
+      topicFilter("any of", ["Billing questions", "Retired topic"]),
+    ];
+    const query = filterStateToQueryText(filters, {}, registry);
+    expect(query.skippedFilters).toEqual([]);
+    const committed = planCommit(
+      `${query.text} assignment:"In a topic" invoice`,
+      undefined,
+      registry,
+    );
+    expect(committed).toMatchObject({
+      status: "committed",
+      filters: filters.concat({
+        column: "assignment",
         type: "stringOptions",
         operator: "any of",
-        value: ["one", "two"],
-      },
-    ];
-    const query = filterStateToQueryText(filters, {}, duplicateRegistry);
-    expect(
-      astToFilterState(
-        parse(query.text, duplicateRegistry).ast,
-        undefined,
-        duplicateRegistry,
-      ).filters,
-    ).toEqual(filters);
+        value: ["assigned"],
+      }),
+      searchQuery: "invoice",
+    });
   });
 
-  it.each([["retired"], ["billing", "retired"]])(
-    "keeps saved topic selections editable when options disappear: %j",
-    (...values) => {
-      const filters: FilterState = [
-        {
-          column: "topicId",
-          type: "stringOptions",
-          operator: "any of",
-          value: values,
-        },
-      ];
-      const savedRegistry = createTopicTraceRegistry(topics, filters);
-      const query = filterStateToQueryText(filters, {}, savedRegistry);
-      expect(query.skippedFilters).toEqual([]);
-      const committed = planCommit(
-        `${query.text} assignment:"In a topic" invoice`,
-        undefined,
-        savedRegistry,
-      );
-      expect(committed).toMatchObject({
-        status: "committed",
-        filters: filters.concat({
-          column: "assignment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["assigned"],
-        }),
-        searchQuery: "invoice",
-      });
-      expect(query.text).toContain("Unavailable topic (retired)");
-      expect(
-        planCommit('assignment:"In a topic" invoice', undefined, savedRegistry),
-      ).toMatchObject({
-        status: "committed",
-        filters: [
-          {
-            column: "assignment",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["assigned"],
-          },
-        ],
-      });
-    },
-  );
-
-  it("rejects operators and fields the local evaluator cannot apply", () => {
-    for (const query of ["topic:>billing", "topic:*bill*", "summary:refund"]) {
+  it("rejects operators, other facets, and fields the local evaluator cannot apply", () => {
+    for (const query of [
+      "topics.Intent:>billing",
+      "topics.Intent:*bill*",
+      'topics.Sentiment:"Happy"',
+      "summary:refund",
+    ]) {
       expect(
         astToFilterState(parse(query, registry).ast, undefined, registry)
           .errors,
@@ -425,7 +389,7 @@ describe("topic search registry", () => {
       runSearchBarInvariants({
         name: "topics",
         registry,
-        extraKeys: [],
+        extraKeys: ["topics.Intent"],
         scoreContexts: [{}],
         fieldValues: ["billing", "Support", '"Billing questions"', "outlier"],
         freeTextValues: ["refund policy", "or", "a*b", "trace-one"],

@@ -9,10 +9,11 @@ import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 const topic: FilterState[number] = {
-  column: "topicId",
-  type: "stringOptions",
+  column: "topics",
+  type: "categoryOptions",
+  key: "Intent",
   operator: "any of",
-  value: ["billing"],
+  value: ["Billing questions"],
 };
 const assignment: FilterState[number] = {
   column: "assignment",
@@ -206,7 +207,7 @@ describe("Topics facet-local filters", () => {
 
   it("ignores malformed cached state", () => {
     localStorage.setItem(
-      "topics-trace-filters-v1",
+      "topics-trace-filters-v2",
       JSON.stringify({ broken: null }),
     );
     const { result } = setup();

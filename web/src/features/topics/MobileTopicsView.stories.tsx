@@ -233,10 +233,11 @@ export const BrowseAndOpenTrace = meta.story({
     selectedTraceId: "billing-19",
     filters: [
       {
-        column: "topicId",
-        type: "stringOptions",
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
         operator: "any of",
-        value: ["billing"],
+        value: [topics[0].name],
       },
     ],
   },
@@ -479,10 +480,11 @@ export const PickFilteredPointBeyondPage = meta.story({
     view: "map",
     filters: [
       {
-        column: "topicId",
-        type: "stringOptions",
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
         operator: "any of",
-        value: ["billing"],
+        value: [topics[0].name],
       },
     ],
     useTraces: staticTopicTraces(rows, 1),

@@ -13,7 +13,10 @@ import { filterTopicTraces } from "./topic-trace-filters";
 import { useTopicTraceFilters } from "./useTopicTraceFilters";
 
 const facetPersistenceProject = "storybook-topics-toolbar-facet-persistence";
-const facets = [{ facetId: "intent" }, { facetId: "sentiment" }];
+const facets = [
+  { facetId: "intent", name: "Intent" },
+  { facetId: "sentiment", name: "Sentiment" },
+];
 
 const MemoryQueryAdapter: QueryParamAdapterComponent = ({ children }) => {
   const [location, setLocation] = useState({ search: "" });
@@ -22,6 +25,9 @@ const MemoryQueryAdapter: QueryParamAdapterComponent = ({ children }) => {
 
 function FacetToolbarExample() {
   const state = useTopicTraceFilters(facetPersistenceProject, facets, null);
+  const activeFacet =
+    facets.find((facet) => facet.facetId === state.selectedFacetId) ??
+    facets[0];
   return (
     <div className="flex max-w-2xl flex-col gap-2">
       <Tabs
@@ -34,6 +40,7 @@ function FacetToolbarExample() {
         </Tabs.List>
       </Tabs>
       <TopicsTraceToolbar
+        facetName={activeFacet.name}
         topics={topics}
         filters={state.filters}
         searchQuery={state.searchQuery}
@@ -83,7 +90,10 @@ function ToolbarExample(args: ComponentProps<typeof TopicsTraceToolbar>) {
   const [filters, setFilters] = useState(args.filters);
   const [searchQuery, setSearchQuery] = useState(args.searchQuery);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
-  const matches = filterTopicTraces(rows, filters, searchQuery);
+  const matches = filterTopicTraces(rows, filters, searchQuery, {
+    name: args.facetName,
+    topics: args.topics,
+  });
   return (
     <div className="flex max-w-2xl flex-col gap-2">
       <TopicsTraceToolbar
@@ -124,6 +134,7 @@ function ToolbarExample(args: ComponentProps<typeof TopicsTraceToolbar>) {
 const meta = preview.meta({
   component: TopicsTraceToolbar,
   args: {
+    facetName: "Intent",
     topics,
     filters: [],
     searchQuery: null,
@@ -167,7 +178,7 @@ export const SearchAndClear = meta.story({
     );
     await replaceQuery(
       search,
-      'topic:("Billing questions" OR "Project setup") assignment:Outlier billing',
+      'topics.Intent:("Billing questions" OR "Project setup") assignment:Outlier billing',
     );
     await waitFor(() =>
       expect(canvas.getByRole("status")).toHaveTextContent("0 of 4 traces"),
@@ -179,10 +190,11 @@ export const SearchAndClear = meta.story({
     await expect(search).not.toHaveTextContent("in:");
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith([
       {
-        column: "topicId",
-        type: "stringOptions",
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
         operator: "any of",
-        value: ["billing", "setup"],
+        value: ["Billing questions", "Project setup"],
       },
       {
         column: "assignment",
@@ -227,7 +239,7 @@ export const Exclusions = meta.story({
 });
 
 export const TopicAutocomplete = meta.story({
-  name: "(Test) Topic Autocomplete Uses Stable IDs",
+  name: "(Test) Topic Autocomplete Uses topics.<Facet>",
   args: {
     topics: [...topics, { id: "support", name: "Technical support" }],
   },
@@ -236,7 +248,7 @@ export const TopicAutocomplete = meta.story({
     const body = within(canvasElement.ownerDocument.body);
     const search = canvas.getByRole("combobox", { name: "Search" });
     await userEvent.click(search);
-    await userEvent.type(search, "topic:");
+    await userEvent.type(search, "topics.Intent:");
     const option = await body.findByRole("option", {
       name: /Billing questions/,
     });
@@ -251,18 +263,19 @@ export const TopicAutocomplete = meta.story({
     );
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith([
       {
-        column: "topicId",
-        type: "stringOptions",
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
         operator: "any of",
-        value: ["billing"],
+        value: ["Billing questions"],
       },
     ]);
     await expect(canvas.getByTestId("search-bar-token")).toHaveTextContent(
-      'topic:"Billing questions"',
+      'topics.Intent:"Billing questions"',
     );
     await replaceQuery(
       search,
-      'topic:("Billing questions" OR "Project setup")',
+      'topics.Intent:("Billing questions" OR "Project setup")',
     );
     await userEvent.click(
       canvas.getByRole("button", { name: /Edit.*2 values/ }),
@@ -278,10 +291,11 @@ export const TopicAutocomplete = meta.story({
     await expect(unselectedTopic).toBeChecked();
     await expect(args.onFiltersChange).toHaveBeenLastCalledWith([
       {
-        column: "topicId",
-        type: "stringOptions",
+        column: "topics",
+        type: "categoryOptions",
+        key: "Intent",
         operator: "any of",
-        value: ["billing", "setup", "support"],
+        value: ["Billing questions", "Project setup", "Technical support"],
       },
     ]);
   },
@@ -290,7 +304,7 @@ export const TopicAutocomplete = meta.story({
 export const UnsupportedRestoredFilter = meta.story({
   name: "(Test) Unsupported Restored Filter Can Be Cleared",
   args: {
-    filters: [{ column: "topicId", type: "number", operator: "=", value: 1 }],
+    filters: [{ column: "topics", type: "number", operator: "=", value: 1 }],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -305,7 +319,7 @@ export const UnsupportedRestoredFilter = meta.story({
 export const FacetFiltersPersist = meta.story({
   name: "(Test) Facets Remember Their Filters",
   beforeEach: () => {
-    const storageKey = "topics-trace-filters-v1";
+    const storageKey = "topics-trace-filters-v2";
     const snapshots = JSON.parse(
       localStorage.getItem(storageKey) ?? "{}",
     ) as Record<string, unknown>;
@@ -325,7 +339,7 @@ export const FacetFiltersPersist = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const search = canvas.getByRole("combobox", { name: "Search" });
-    await replaceQuery(search, 'topic:"Billing questions" invoice');
+    await replaceQuery(search, 'topics.Intent:"Billing questions" invoice');
     await waitFor(() => expect(search).toHaveTextContent("invoice"));
     await userEvent.click(canvas.getByRole("tab", { name: "Sentiment" }));
     await waitFor(() => {
@@ -337,7 +351,7 @@ export const FacetFiltersPersist = meta.story({
     await userEvent.click(canvas.getByRole("tab", { name: "Intent" }));
     await waitFor(() => {
       expect(search).toHaveTextContent("invoice");
-      expect(search).toHaveTextContent('topic:"Billing questions"');
+      expect(search).toHaveTextContent('topics.Intent:"Billing questions"');
       expect(search).not.toHaveTextContent("subscription");
     });
     await userEvent.click(canvas.getByRole("tab", { name: "Sentiment" }));
