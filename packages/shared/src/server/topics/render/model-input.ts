@@ -1,16 +1,16 @@
-import type { Observation } from "../../domain/observations";
-import { stableJsonStringify } from "../../utils/json";
+import type { Observation } from "../../../domain/observations";
+import { stableJsonStringify } from "../../../utils/json";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
-} from "../../utils/normalized-io";
+} from "../../../utils/normalized-io";
 import {
   redactModelPayload,
   renderTranscript,
   type TopicNoneReplyEnding,
-} from "./topics-renderer";
-import { topicsTranscriptConfig } from "./topics-renderer-config";
-import type { ExecutionIssue, Transcript } from "./types";
+} from "./renderer";
+import { topicsTranscriptConfig } from "./renderer-config";
+import type { ExecutionIssue, Transcript } from "../../transcript/types";
 
 const redactInlineMedia = (text: string): string =>
   text.replace(/data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g, "[media omitted]");

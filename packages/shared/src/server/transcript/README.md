@@ -57,7 +57,7 @@ messages from the content.
 
 ### Topics rendering
 
-[`topics-renderer.ts`](topics-renderer.ts) takes the transcript plus the loaded, ordered observations. The latter supply root I/O, operation context, errors and tool definitions that conversation assembly omits. Rendering caps and inclusions live in [`topics-renderer-config.ts`](topics-renderer-config.ts); they are separate from the assembler's optional character limit and Topics model-input limits.
+Topics renders the transcript in its own module, [`server/topics/render`](../topics/render/). [`renderer.ts`](../topics/render/renderer.ts) takes the transcript plus the loaded, ordered observations. The latter supply root I/O, operation context, errors and tool definitions that conversation assembly omits. Rendering caps and inclusions live in [`renderer-config.ts`](../topics/render/renderer-config.ts); they are separate from the assembler's optional character limit and Topics model-input limits. The transcript module does not depend on it.
 
 ### Eval threads
 

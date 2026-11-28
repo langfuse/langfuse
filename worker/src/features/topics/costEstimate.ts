@@ -8,8 +8,6 @@ import {
   getTracingReadinessSettings,
   logger,
   orderObservations,
-  prepareAssembledTopicTranscript,
-  renderStoredTopicText,
   TRACE_TRANSCRIPT_MAX_CHARACTERS,
   type EventsDispatchEventRow,
 } from "@langfuse/shared/src/server";
@@ -20,6 +18,8 @@ import {
   priceTopicCostEstimate,
   readTopicCostEstimate,
   topicMatchingTraceIdsQuery,
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
 } from "@langfuse/shared/topics/server";
 import {
   TOPICS_COST_ESTIMATE_SAMPLE_SIZE,

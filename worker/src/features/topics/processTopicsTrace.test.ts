@@ -30,17 +30,28 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   createTraceTranscriptStorage: () => ({ get: mocks.getInputs }),
   recordIncrement: vi.fn(),
 }));
-vi.mock("@langfuse/shared/topics/server", () => ({
-  getEnabledTopicsModels: vi.fn(
-    async () => new Map([["project", { embedding: { model: "embed" } }]]),
-  ),
-  isValidTopicSummary: () => true,
-  listTopicFacets: vi.fn(),
-  listTopicRules: vi.fn(),
-  readTopicExecutionSummary: vi.fn(),
-  topicSummaryRecord: (row: unknown) => ({ summary: row }),
-  topicAssignmentRecord: (row: unknown) => ({ assignment: row }),
-}));
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
+  // The Topics text render is real code, not a dependency to stub.
+  const {
+    prepareAssembledTopicTranscript,
+    renderStoredTopicText,
+    TOPICS_TEXT_VERSION,
+  } = await importOriginal<typeof import("@langfuse/shared/topics/server")>();
+  return {
+    prepareAssembledTopicTranscript,
+    renderStoredTopicText,
+    TOPICS_TEXT_VERSION,
+    getEnabledTopicsModels: vi.fn(
+      async () => new Map([["project", { embedding: { model: "embed" } }]]),
+    ),
+    isValidTopicSummary: () => true,
+    listTopicFacets: vi.fn(),
+    listTopicRules: vi.fn(),
+    readTopicExecutionSummary: vi.fn(),
+    topicSummaryRecord: (row: unknown) => ({ summary: row }),
+    topicAssignmentRecord: (row: unknown) => ({ assignment: row }),
+  };
+});
 vi.mock("../../services/ClickhouseWriter", () => ({
   ClickhouseWriter: { getInstance: () => ({ addToQueue: mocks.addToQueue }) },
   TableName: {

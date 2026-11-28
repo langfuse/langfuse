@@ -52,10 +52,10 @@ import { isTopicFilter } from "@langfuse/shared/topics";
 import {
   loadTopicTranscript,
   TopicTraceTooLarge,
-} from "@langfuse/shared/topics/server";
-import {
   prepareAssembledTopicTranscript,
   renderStoredTopicText,
+} from "@langfuse/shared/topics/server";
+import {
   instrumentAsync,
   getCurrentSpan,
   getScoresAndCorrectionsForTraces,

@@ -16,3 +16,8 @@ export * from "./rule-refresh";
 export * from "./trace-filter";
 export * from "./cost-estimate";
 export * from "./costs";
+export {
+  prepareAssembledTopicTranscript,
+  renderStoredTopicText,
+  TOPICS_TEXT_VERSION,
+} from "./render/model-input";

@@ -9,7 +9,7 @@ import {
 import { findModel } from "../ingestion/modelMatch";
 import { calculateModelUsageCosts } from "../pricing-tiers/calculateModelUsageCosts";
 import { redis } from "../redis/redis";
-import { TOPICS_TEXT_VERSION } from "../transcript/topics-model-input";
+import { TOPICS_TEXT_VERSION } from "./render/model-input";
 import { enqueueTopicCostEstimate } from "./queue";
 
 // Outlives the job's two-minute deadline, so a lost job frees the project soon after.

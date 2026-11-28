@@ -10,11 +10,11 @@ import type {
   TopicSummary,
   TopicTimeRange,
 } from "@langfuse/shared/topics";
-import { getTopicClusteringSummaries } from "@langfuse/shared/topics/server";
 import {
-  recordIncrement,
+  getTopicClusteringSummaries,
   TOPICS_TEXT_VERSION,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/topics/server";
+import { recordIncrement } from "@langfuse/shared/src/server";
 import { topicExecutionInputSchema } from "@langfuse/shared/topics";
 import { TopicsProviderUnavailable } from "./provider-error";
 const { topicSourceKey } = vi.hoisted(() => ({
@@ -85,8 +85,17 @@ const facet: TopicFacetVersion = {
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
-vi.mock("@langfuse/shared/topics/server", () => {
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
+  // The Topics text render is real code, not a dependency to stub.
+  const {
+    prepareAssembledTopicTranscript,
+    renderStoredTopicText,
+    TOPICS_TEXT_VERSION,
+  } = await importOriginal<typeof import("@langfuse/shared/topics/server")>();
   return {
+    prepareAssembledTopicTranscript,
+    renderStoredTopicText,
+    TOPICS_TEXT_VERSION,
     topicAnalysisCohort: async () => ({
       traces: { query: "SELECT '' AS id LIMIT 0", params: {} },
       sample: { seed: "seed", limit: 20_000 },
