@@ -86,6 +86,8 @@ interface GetObservationsListBaseParams {
 interface GetObservationsListParams extends GetObservationsListBaseParams {
   orderBy: any;
   page: number;
+  /** Adds `toolDefinitionsCount`/`toolCallsCount`, computed in ClickHouse. */
+  selectToolCounts?: boolean;
 }
 
 interface GetObservationsCursorListParams extends GetObservationsListBaseParams {
@@ -268,6 +270,7 @@ export async function getEventList(params: GetObservationsListParams) {
     limit: params.limit + 1,
     offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
     selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
+    selectToolCounts: params.selectToolCounts,
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
 

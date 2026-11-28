@@ -192,6 +192,8 @@ const EVENTS_FIELDS = {
   toolDefinitions: "e.tool_definitions as tool_definitions",
   toolCalls: "e.tool_calls as tool_calls",
   toolCallNames: "e.tool_call_names as tool_call_names",
+  toolDefinitionsCount: "length(e.tool_definitions) as tool_definitions_count",
+  toolCallsCount: "length(e.tool_calls) as tool_calls_count",
 
   // Pricing tier
   usagePricingTierId: "e.usage_pricing_tier_id as usage_pricing_tier_id",

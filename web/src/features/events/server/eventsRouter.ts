@@ -197,6 +197,7 @@ export const eventsRouter = createTRPCRouter({
             orderBy: normalizedOrderBy,
             page: input.page,
             limit: input.limit,
+            selectToolCounts: true,
           });
           audit.refs(observationRefs(events.observations));
           audit.count(events.observations.length);

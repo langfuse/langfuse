@@ -303,6 +303,20 @@ const applyBatchIOStringRendering = (
 type EventsObservationQueryResult = EventsObservationRecordReadType & {
   latency?: string;
   time_to_first_token?: string;
+  // UInt64 counts from the `toolCounts` field set, returned as strings.
+  tool_definitions_count?: string;
+  tool_calls_count?: string;
+};
+
+/** Tool counts a read computed in ClickHouse instead of loading the tools. */
+type ObservationToolCounts = {
+  toolDefinitionsCount?: number;
+  toolCallsCount?: number;
+};
+
+/** List reads that can return tool counts in place of the tool payloads. */
+type EventsObservationListQuery = ObservationTableQuery & {
+  selectToolCounts?: boolean;
 };
 
 /**
@@ -358,7 +372,9 @@ async function enrichObservationsWithModelData(
   projectId: string,
   parseIoAsJson: boolean,
   requestedFields: null,
-): Promise<Array<EventsObservation & ObservationPriceFields>>;
+): Promise<
+  Array<EventsObservation & ObservationPriceFields & ObservationToolCounts>
+>;
 async function enrichObservationsWithModelData(
   observationRecords: Array<EventsObservationQueryResult>,
   projectId: string,
@@ -434,6 +450,12 @@ async function enrichObservationsWithModelData(
             ? Number(o.time_to_first_token) / 1000
             : null
           : (converted.timeToFirstToken ?? null),
+      ...(o.tool_definitions_count !== undefined && {
+        toolDefinitionsCount: Number(o.tool_definitions_count),
+      }),
+      ...(o.tool_calls_count !== undefined && {
+        toolCallsCount: Number(o.tool_calls_count),
+      }),
       // Add model pricing fields (null if not fetched)
       modelId: model?.id ?? null,
       inputPrice:
@@ -457,7 +479,9 @@ async function enrichObservationsWithModelData(
  * by index and asserts the row count.
  */
 async function enrichObservationsWithTraceFields(
-  observationRecords: Array<EventsObservation & ObservationPriceFields>,
+  observationRecords: Array<
+    EventsObservation & ObservationPriceFields & ObservationToolCounts
+  >,
 ): Promise<FullEventsObservations> {
   return observationRecords.map((observation) => {
     // Remove raw tags field as this is re-mapped to traceTags
@@ -468,13 +492,15 @@ async function enrichObservationsWithTraceFields(
       traceTimestamp: null,
       toolDefinitions: observation.toolDefinitions ?? null,
       toolCalls: observation.toolCalls ?? null,
-      // Compute counts from actual data for events table
-      toolDefinitionsCount: observation.toolDefinitions
-        ? Object.keys(observation.toolDefinitions).length
-        : null,
-      toolCallsCount: observation.toolCalls
-        ? observation.toolCalls.length
-        : null,
+      // Prefer the counts ClickHouse computed; otherwise count the payloads.
+      toolDefinitionsCount:
+        observation.toolDefinitionsCount ??
+        (observation.toolDefinitions
+          ? Object.keys(observation.toolDefinitions).length
+          : null),
+      toolCallsCount:
+        observation.toolCallsCount ??
+        (observation.toolCalls ? observation.toolCalls.length : null),
     };
   });
 }
@@ -691,15 +717,15 @@ export const getObservationsCountsFromEventsTable = async (
 };
 
 export async function getObservationsWithModelDataFromEventsTable(
-  opts: ObservationTableQuery & {
+  opts: EventsObservationListQuery & {
     ioSizeCap: NonNullable<ObservationTableQuery["ioSizeCap"]>;
   },
 ): Promise<Array<FullEventsObservation & ObservationIOSizeFields>>;
 export async function getObservationsWithModelDataFromEventsTable(
-  opts: ObservationTableQuery,
+  opts: EventsObservationListQuery,
 ): Promise<FullEventsObservations>;
 export async function getObservationsWithModelDataFromEventsTable(
-  opts: ObservationTableQuery,
+  opts: EventsObservationListQuery,
 ): Promise<FullEventsObservations> {
   const observationRecords = await getObservationsFromEventsTableInternal<
     EventsObservationQueryResult & Partial<IOSizeCapRowFields>
@@ -708,13 +734,14 @@ export async function getObservationsWithModelDataFromEventsTable(
     select: "rows",
   });
 
-  const withModelData: Array<EventsObservation & ObservationPriceFields> =
-    await enrichObservationsWithModelData(
-      observationRecords,
-      opts.projectId,
-      false,
-      null, // V1 path: always enrich all fields
-    );
+  const withModelData: Array<
+    EventsObservation & ObservationPriceFields & ObservationToolCounts
+  > = await enrichObservationsWithModelData(
+    observationRecords,
+    opts.projectId,
+    false,
+    null, // V1 path: always enrich all fields
+  );
 
   const enriched = await enrichObservationsWithTraceFields(withModelData);
 
@@ -956,7 +983,7 @@ const assertNoScoreFiltersWithPosition = (
  *   `positionInTrace`, and for the filters the planner rejects.
  */
 async function getObservationsFromEventsTableInternal<T>(
-  opts: ObservationTableQuery & {
+  opts: EventsObservationListQuery & {
     selectMetadata?: boolean;
     select:
       | "count"
@@ -972,7 +999,8 @@ async function getObservationsFromEventsTableInternal<T>(
     filter,
     selectIOAndMetadata,
     selectMetadata,
-    selectToolData = true,
+    selectToolData = false,
+    selectToolCounts = false,
     renderingProps = DEFAULT_RENDERING_PROPS,
     limit,
     offset,
@@ -1023,6 +1051,9 @@ async function getObservationsFromEventsTableInternal<T>(
       selectToolData ? "base" : "baseWithoutTools",
       "calculated",
     );
+    if (selectToolCounts && !selectToolData) {
+      queryBuilder.selectFieldSet("toolCounts");
+    }
     if (selectIOAndMetadata) {
       if (opts.ioSizeCap) {
         queryBuilder.selectIOWithSizeCap(
