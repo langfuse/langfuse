@@ -65,6 +65,7 @@ import {
   clickhouseAsciiLower,
   FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS,
   hasFtsSearchToken,
+  shouldUseFtsTokenPrefilter,
   toJsonUnicodeEscaped,
 } from "../utils/searchText";
 import { escapeSqlLikePattern } from "../utils/sqlLike";
@@ -503,7 +504,7 @@ function lowerString<B>(
       const exact = ops(value, "=", bound);
       if (indexed?.textIndexed) {
         return [
-          hasFtsSearchToken(search)
+          shouldUseFtsTokenPrefilter(search)
             ? ops.and([exact, textTokenPrefilter(indexed.value(eb), bound)])
             : exact,
         ];
@@ -542,11 +543,11 @@ function lowerString<B>(
       // The source admits `matches` on text-indexed fields only.
       if (!indexed?.textIndexed) throw loweringKindError(condition);
       const text = indexed.value(eb);
+      const match = ops(position(lower(text), lower(bound)), ">", literal(0));
       return [
-        ops.and([
-          ops(position(lower(text), lower(bound)), ">", literal(0)),
-          textTokenPrefilter(text, bound),
-        ]),
+        shouldUseFtsTokenPrefilter(search)
+          ? ops.and([match, textTokenPrefilter(text, bound)])
+          : match,
       ];
     }
   }
@@ -721,7 +722,7 @@ function lowerStringMetadata(
   switch (op) {
     case "=": {
       const equal = eb(entry, "=", bound);
-      return hasFtsSearchToken(search)
+      return shouldUseFtsTokenPrefilter(search)
         ? [hasKey, metadataTokenPrefilter(values, search, op), equal]
         : [hasKey, equal];
     }
@@ -749,12 +750,12 @@ function lowerStringMetadata(
       return [hasKey];
     case "is not set":
       return [eb.not(eb.parens(hasKey))];
-    case FTS_MATCH_OPERATOR:
-      return [
-        hasKey,
-        metadataTokenPrefilter(values, search, op),
-        eb(position(entry, bound), ">", literal(0)),
-      ];
+    case FTS_MATCH_OPERATOR: {
+      const match = eb(position(entry, bound), ">", literal(0));
+      return shouldUseFtsTokenPrefilter(search)
+        ? [hasKey, metadataTokenPrefilter(values, search, op), match]
+        : [hasKey, match];
+    }
   }
 }
 
@@ -799,8 +800,8 @@ type SearchMatcher = (
 const SEARCH_LANES: readonly TracingSearchType[] = TracingSearchType.options;
 
 /**
- * `column ILIKE pattern`, AND-ed with the text-index prefilter when the text
- * has a search token.
+ * `column ILIKE pattern`, AND-ed with the text-index prefilter when
+ * `shouldUseFtsTokenPrefilter` accepts the text.
  */
 const ioLike = (
   eb: EventsExpressionBuilder,
@@ -809,7 +810,7 @@ const ioLike = (
 ): Condition => {
   const bound = eb.val(pattern);
   const match = eb(column, "ilike", bound);
-  return hasFtsSearchToken(text)
+  return shouldUseFtsTokenPrefilter(text)
     ? eb.and([match, textTokenPrefilter(column, bound)])
     : match;
 };
