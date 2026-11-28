@@ -11,7 +11,7 @@ import type { BarChartDatum } from "@/src/components/design-system/internal/char
 import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 import {
-  chartLabelLength,
+  chartLabelUnits,
   truncateChartLabel,
 } from "@/src/components/design-system/internal/charts/fns/chartLabels";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
@@ -167,17 +167,17 @@ export function HorizontalBarChart({
                     );
                     const labelOutside =
                       insideLabelRoom <
-                        chartLabelLength(datum.label) * CHARACTER_WIDTH &&
+                        chartLabelUnits(datum.label) * CHARACTER_WIDTH &&
                       outsideLabelRoom > insideLabelRoom;
                     const labelRoom = labelOutside
                       ? outsideLabelRoom
                       : insideLabelRoom;
-                    const maxCharacters = Math.floor(
+                    const maxLabelUnits = Math.floor(
                       labelRoom / CHARACTER_WIDTH,
                     );
                     const visibleLabel = truncateChartLabel(
                       datum.label,
-                      maxCharacters,
+                      maxLabelUnits,
                     );
                     const labelX = left + barWidth + 8;
                     const inactive =

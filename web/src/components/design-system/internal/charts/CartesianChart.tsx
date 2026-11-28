@@ -5,7 +5,7 @@ import type { ReactNode, ComponentProps } from "react";
 import type { CartesianPlot } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { CartesianLayout } from "./CartesianLayout";
 import { ChartContainer } from "./ChartContainer";
-import { chartLabelLength, truncateChartLabel } from "./fns/chartLabels";
+import { chartLabelUnits, truncateChartLabel } from "./fns/chartLabels";
 
 function ChartGrid({
   yTicks,
@@ -80,7 +80,7 @@ function ChartXAxis({
       (tick) =>
         tick.maxWidth !== undefined &&
         Math.floor(tick.maxWidth / characterWidth) <= 1 &&
-        chartLabelLength(tick.label) > 1,
+        chartLabelUnits(tick.label) > 1,
     );
   const axisTicks: typeof ticks = activeTick
     ? [...ticks.filter((tick) => tick.key !== activeTick.key), activeTick].sort(
@@ -94,13 +94,13 @@ function ChartXAxis({
       else if (index === axisTicks.length - 1) textAnchor = "end";
     }
     const anchor = tick.textAnchor ?? textAnchor;
-    const maxCharacters = tick.maxWidth
+    const maxLabelUnits = tick.maxWidth
       ? Math.max(1, Math.floor(tick.maxWidth / characterWidth))
       : undefined;
-    const label = maxCharacters
-      ? truncateChartLabel(tick.label, maxCharacters)
+    const label = maxLabelUnits
+      ? truncateChartLabel(tick.label, maxLabelUnits)
       : tick.label;
-    const labelWidth = chartLabelLength(label) * characterWidth;
+    const labelWidth = chartLabelUnits(label) * characterWidth;
     const x = tick.x;
     let left = x;
     if (anchor === "middle") left = x - labelWidth / 2;
@@ -109,7 +109,7 @@ function ChartXAxis({
   });
   const active = labels.find(({ tick }) => tick.key === activeTick?.key);
   const activeFullWidth = active
-    ? chartLabelLength(active.tick.label) * characterWidth
+    ? chartLabelUnits(active.tick.label) * characterWidth
     : 0;
   const activeLabelWidth = active ? Math.min(width - 32, activeFullWidth) : 0;
   const activeX = active
