@@ -33,7 +33,7 @@ function span(
 }
 
 describe("packLanes", () => {
-  it("puts every depth on one row, including spans that overlap in time", () => {
+  it("puts each type on one row and levels the spans that overlap in it", () => {
     const roots = [
       span("trace-a", 0, 100, [span("a1", 0, 50, [span("a2", 10, 20)])]),
       span("trace-b", 40, 90, [span("b1", 40, 80)]),
@@ -41,15 +41,25 @@ describe("packLanes", () => {
     const prepared = prepareTimeline(roots);
     const packing = packLanes(prepared.rows);
 
-    expect(packing.laneCount).toBe(3);
-    const laneById = new Map(
-      prepared.rows.map((row, index) => [row.node.id, packing.lanes[index]]),
-    );
+    expect(packing.laneCount).toBe(2);
+    expect(packing.types).toEqual(["TRACE", "SPAN"]);
+    const byId = (values: readonly number[]) =>
+      new Map(prepared.rows.map((row, index) => [row.node.id, values[index]]));
+    const laneById = byId(packing.lanes);
     expect(laneById.get("trace-a")).toBe(0);
     expect(laneById.get("trace-b")).toBe(0);
     expect(laneById.get("a1")).toBe(1);
+    expect(laneById.get("a2")).toBe(1);
     expect(laneById.get("b1")).toBe(1);
-    expect(laneById.get("a2")).toBe(2);
+    // a2 sits inside a1. b1 is on another branch but overlaps a1 in time.
+    const overlapById = byId(packing.overlap);
+    expect(overlapById.get("a1")).toBe(0);
+    expect(overlapById.get("a2")).toBe(1);
+    expect(overlapById.get("b1")).toBe(1);
+    expect(overlapById.get("trace-b")).toBe(1);
+    // Two point spans at one instant still overlap.
+    const points = prepareTimeline([span("p1", 5, 5), span("p2", 5, 5)]);
+    expect(packLanes(points.rows).overlap).toEqual([0, 1]);
 
     const positioned = layout({
       roots,
@@ -62,7 +72,7 @@ describe("packLanes", () => {
       laneByRow: packing.lanes,
       barInsetPx: 2,
     });
-    expect(positioned.rowCount).toBe(3);
+    expect(positioned.rowCount).toBe(2);
     const node = (id: string) =>
       positioned.nodes.find((item) => item.id === id)!;
     expect(node("trace-a").y).toBe(node("trace-b").y);

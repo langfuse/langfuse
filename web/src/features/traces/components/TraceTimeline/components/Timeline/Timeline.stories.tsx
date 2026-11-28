@@ -58,11 +58,11 @@ const meta = preview.meta({
 
 /**
  * A phone-shaped box: narrow and tall, which is the case this spike is for.
- * 658px leaves exactly 600px of surface once the frame, toolbar, axis and
+ * 666px leaves exactly 600px of surface once the toolbar, axis and
  * readout are taken — room for 600 rows at the 1px floor, so the "at the floor"
  * story really is at the floor.
  */
-const PHONE = { width: 360, height: 658 };
+const PHONE = { width: 360, height: 666 };
 /** The peek panel: narrow and short. */
 const PEEK = { width: 320, height: 300 };
 /**
@@ -71,7 +71,7 @@ const PEEK = { width: 320, height: 300 };
  * ten times wider, and that is a different question: whether extreme density is
  * still the right answer when there is plenty of room.
  */
-const DESKTOP = { width: 1280, height: 658 };
+const DESKTOP = { width: 1280, height: 666 };
 
 export const FiftySpansOnAPhone = meta.story({
   args: {
@@ -834,7 +834,7 @@ export const ExternalSelectionIsRevealed = meta.story({
 
     // And the selected row really is drawn, highlighted, inside the box.
     const selected = canvasElement.querySelector<HTMLElement>(
-      '[data-testid="timeline-dense-content"] > div.bg-primary-accent\\/20',
+      '[data-testid="timeline-dense-content"] > div.bg-muted',
     );
     await expect(selected).not.toBeNull();
     const surface = canvasElement
@@ -1734,11 +1734,9 @@ export const HoverDoesNotRecolourTheBar = meta.story({
     await expect(before.some((hue) => hue.includes("primary-accent"))).toBe(
       false,
     );
-    // Selection still reads, as a ring rather than a repaint.
-    const ringed = bars().filter((bar) =>
-      [...bar.classList].some((name) => name.startsWith("ring-")),
-    );
-    await expect(ringed.length).toBe(1);
+    // Selection still reads: the selected bar is the one at full strength.
+    const fullStrength = bars().filter((bar) => !hueOf(bar).endsWith("/50"));
+    await expect(fullStrength.length).toBe(1);
   },
 });
 
@@ -2705,7 +2703,7 @@ export const PackedPacksSequentialSession = meta.story({
     roots: sessionRoots(24),
   },
   play: async ({ canvas }) => {
-    // A session opens packed: 24 traces × 3 levels is 72 tree rows, 3 lanes.
+    // A session opens packed: 24 traces × 3 types is 72 tree rows, 3 lanes.
     await waitFor(() => {
       expect(canvas.getByTestId("dense-rows").textContent).toContain("of 3");
     });
@@ -2807,7 +2805,8 @@ function nestedChain(): LayoutNode {
     child = {
       id: `chain-${index}`,
       name: `span-${index}`,
-      type: index === 0 ? "TRACE" : "SPAN",
+      // One type per level, so packing by type has nothing to merge.
+      type: ["TRACE", "AGENT", "SPAN", "GENERATION", "TOOL"][index],
       startTime: new Date(start),
       endTime: new Date(start + durations[index]!),
       children: child ? [child] : [],
