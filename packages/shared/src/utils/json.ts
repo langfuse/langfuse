@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-object-has-own -- baseline before rule enablement */
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { JsonNested } from "./zod";
 import { isSafeNumber } from "lossless-json";

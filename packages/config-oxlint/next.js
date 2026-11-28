@@ -191,6 +191,7 @@ export default {
         "prefer-promise-reject-errors": "warn",
         radix: "warn",
         "default-param-last": "warn",
+        "prefer-object-has-own": "warn",
         "no-use-before-define": [
           "warn",
           {

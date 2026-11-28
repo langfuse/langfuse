@@ -1,3 +1,4 @@
+/* oxlint-disable prefer-object-has-own -- baseline before rule enablement */
 import { safeJsonParse } from "../../utils/json";
 import type { ModelWithPrices } from "../ingestion/modelMatch";
 import type { UsageCostType } from "../repositories/definitions";
