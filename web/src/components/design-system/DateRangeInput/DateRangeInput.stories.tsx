@@ -1,9 +1,18 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { DateRangeInput } from "./DateRangeInput";
 
-const meta = preview.meta({ component: DateRangeInput });
+type PresetProps = Extract<
+  ComponentProps<typeof DateRangeInput>,
+  { variant?: "preset" }
+>;
+
+function PresetDateRangeInput(props: PresetProps) {
+  return <DateRangeInput {...props} />;
+}
+
+const meta = preview.meta({ component: PresetDateRangeInput });
 
 export const Default = meta.story({
   args: {

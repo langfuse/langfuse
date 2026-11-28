@@ -39,14 +39,16 @@ const selectOptions = [
 function Field({
   name,
   label,
+  width = "w-44",
   children,
 }: {
   name: string;
   label: string;
+  width?: "w-44" | "w-auto";
   children: ReactNode;
 }) {
   return (
-    <div className="flex w-44 flex-col gap-1">
+    <div className={`flex ${width} flex-col gap-1`}>
       <span className="text-muted-foreground text-xs">{label}</span>
       <div data-form-control={name}>{children}</div>
     </div>
@@ -183,6 +185,15 @@ function StandardControls() {
           onCustomChange={() => undefined}
         />
       </Field>
+      <Field name="date-fields" label="DateRangeInput fields" width="w-auto">
+        <DateRangeInput
+          variant="fields"
+          value={{ from: "2026-08-31", to: "2026-09-07" }}
+          fromLabel="Start date"
+          toLabel="End date"
+          onChange={() => undefined}
+        />
+      </Field>
       <Field name="query" label="QueryInput">
         <QueryField size="default" />
       </Field>
@@ -238,6 +249,7 @@ export const StandardHeight = meta.story({
       "select",
       "multiselect",
       "date",
+      "date-fields",
       "query",
       "tags",
       "async-select",

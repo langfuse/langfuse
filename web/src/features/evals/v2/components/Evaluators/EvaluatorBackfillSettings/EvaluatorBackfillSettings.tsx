@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { format, subMonths } from "date-fns";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
+import { DateRangeInput } from "@/src/components/design-system/DateRangeInput/DateRangeInput";
 import { Input } from "@/src/components/ui/input";
 import {
   Select,
@@ -172,15 +172,16 @@ export function EvaluatorBackfillSettings({
 
           {selectedWindow === "custom" ? (
             <DateRangeInput
+              variant="fields"
               value={{
                 from: format(range.from, "yyyy-MM-dd"),
                 to: format(range.to, "yyyy-MM-dd"),
               }}
               min={format(subMonths(new Date(), 6), "yyyy-MM-dd")}
               max={format(new Date(), "yyyy-MM-dd")}
-              fromAriaLabel="Backfill start date"
-              toAriaLabel="Backfill end date"
-              onValueChange={(value) =>
+              fromLabel="Backfill start date"
+              toLabel="Backfill end date"
+              onChange={(value) =>
                 onRangeChange({
                   from: new Date(`${value.from}T00:00:00`),
                   to: new Date(`${value.to}T23:59:59.999`),
